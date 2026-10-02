@@ -1,0 +1,77 @@
+#!/usr/bin/env bash
+
+LOG_FILE=~/var/log/vivaldiws.log
+PATH="/opt/homebrew/bin:${PATH}"
+SOCAT_TIMEOUT=0.01
+VIVALDI_EXT_ID="mpognobbkildjkofajifpdfhcoklimli"
+
+if [[ "${BASH_SOURCE[0]}" = "$0" ]]; then
+  exec >>${LOG_FILE}
+  exec 2>&1
+fi
+
+_vivws() {
+  local ws expr id req res
+  local await=false
+  local ret=false
+  local show=false
+
+  while getopts "prs" opt; do
+    case "$opt" in
+    p) await=true ;;
+    r) ret=true ;;
+    s) show=true ;;
+    *) true ;;
+    esac
+  done
+  shift $((OPTIND - 1))
+  OPTIND=1
+
+  ws="$1"
+  expr="$2"
+  id="$RANDOM"
+
+  req="$(
+    jq -cn \
+      --argjson id "$id" \
+      --arg expr "$expr" \
+      --argjson await "$await" \
+      '{
+        id: $id,
+        method: "Runtime.evaluate",
+        params: {
+          expression: $expr,
+          returnByValue: true
+        }
+      }
+      | if $await then .params.awaitPromise = true else . end'
+  )"
+  $show && echo "$req"
+
+  res="$(
+    printf '%s\n' "$req" |
+      timeout "$SOCAT_TIMEOUT" websocat -n "$ws"
+  )"
+  $ret && echo "$res"
+}
+
+MAIN_WS="$(
+  curl -s http://localhost:9222/json |
+    jq -r --arg id "$VIVALDI_EXT_ID" \
+      '.[] | select(.url | contains($id + "/main.html")) | .webSocketDebuggerUrl'
+)"
+
+WINDOW_ID="$(_vivws -pr "$MAIN_WS" 'new Promise(r => chrome.windows.getCurrent(w => r(w.id)))' ret | jq -r .result.result.value)"
+
+if [[ "${BASH_SOURCE[0]}" = "$0" ]]; then
+  WS_ID="$1"
+  if [ -z "$1" ]; then
+    echo Need workspace ID
+    exit 1
+  fi
+  _focus() {
+    _vivws "$MAIN_WS" "vivaldi.menubar.onActivated.dispatch(${WINDOW_ID},'COMMAND_WORKSPACE_SWITCH_${WS_ID}','')"
+  }
+  _focus
+  _focus
+fi
