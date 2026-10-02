@@ -89,3 +89,33 @@ deadline (including queueing); optional event setup has a two-second budget.
 Cancelled queued commands cannot dispatch later. A lost response reports `unknown_outcome`;
 inspect browser state before deciding whether to issue another mutation.
 
+## Development
+
+In the activated Python environment, install the pinned development tools and hooks:
+
+```bash
+python -m pip install -e '.[dev]'
+python -m pre_commit install --hook-type pre-commit --hook-type pre-push
+```
+
+Commit hooks format and lint changed Python files. The push hook and CI run the
+complete gate: formatting, linting, strict mypy checks of the application, a secret
+scan of files and reachable Git history, and tests. The secret scan also runs at
+commit time and reports locations without printing candidate secret values.
+Tests are linted and formatted but are not included in strict type checking.
+
+```bash
+scripts/format.sh
+scripts/check.sh
+python -m build
+```
+
+Scripts use `python3` from the active environment; `REMALDI_PYTHON` can select an
+explicit interpreter. CI runs on macOS and Linux with Python 3.12 and builds both
+wheel and source distributions. Keep credentials, browser-state captures, runtime
+logs, and local environment files out of Git.
+
+The suite uses fake WebSockets and temporary runtime directories. It does not
+launch Vivaldi. Live acceptance requires a debug-enabled browser: inspect `state`,
+switch to a known workspace and observe it, confirm repeated calls reuse the PID,
+then manually restart the browser and verify reconnection with fresh state.

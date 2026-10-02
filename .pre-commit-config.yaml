@@ -1,0 +1,29 @@
+repos:
+  - repo: local
+    hooks:
+      - id: ruff-check
+        name: Ruff lint and fixes
+        entry: python3 -m ruff check --fix
+        language: system
+        types_or: [python]
+        stages: [pre-commit]
+      - id: ruff-format
+        name: Ruff formatting
+        entry: python3 -m ruff format
+        language: system
+        types_or: [python]
+        stages: [pre-commit]
+      - id: quality-checks
+        name: Formatting, lint, strict types, and tests
+        entry: scripts/check.sh
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [pre-push]
+      - id: secret-audit
+        name: Secret audit of files and reachable history
+        entry: python3 scripts/audit-secrets.py
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [pre-commit]
