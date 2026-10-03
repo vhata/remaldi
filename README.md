@@ -104,6 +104,13 @@ scan of files and reachable Git history, and tests. The secret scan also runs at
 commit time and reports locations without printing candidate secret values.
 Tests are linted and formatted but are not included in strict type checking.
 
+Git hooks create and reuse their own Python 3.12 environment with the required
+tools. Python 3.12 must be installed, but activating the development environment
+is not required for commits or pushes. The first hook run downloads dependencies;
+later runs use the cached environment. The push hook always uses that environment,
+including when `REMALDI_PYTHON` is set for standalone scripts. Keep hook tool pins
+aligned with the development dependencies when upgrading tools.
+
 ```bash
 scripts/format.sh
 scripts/check.sh

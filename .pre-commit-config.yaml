@@ -1,29 +1,41 @@
+default_language_version:
+  python: python3.12
+
 repos:
   - repo: local
     hooks:
       - id: ruff-check
         name: Ruff lint and fixes
-        entry: python3 -m ruff check --fix
-        language: system
+        entry: python -m ruff check --fix
+        language: python
+        # Keep tool versions aligned with pyproject.toml's dev dependencies.
+        additional_dependencies: &quality_dependencies
+          - ruff==0.16.10
+          - mypy==2.4.0
+          - detect-secrets==1.5.0
+          - websockets>=15,<18
         types_or: [python]
         stages: [pre-commit]
       - id: ruff-format
         name: Ruff formatting
-        entry: python3 -m ruff format
-        language: system
+        entry: python -m ruff format
+        language: python
+        additional_dependencies: *quality_dependencies
         types_or: [python]
         stages: [pre-commit]
       - id: quality-checks
         name: Formatting, lint, strict types, and tests
-        entry: scripts/check.sh
-        language: system
+        entry: bash -c 'REMALDI_PYTHON=python exec scripts/check.sh'
+        language: python
+        additional_dependencies: *quality_dependencies
         pass_filenames: false
         always_run: true
         stages: [pre-push]
       - id: secret-audit
         name: Secret audit of files and reachable history
-        entry: python3 scripts/audit-secrets.py
-        language: system
+        entry: python scripts/audit-secrets.py
+        language: python
+        additional_dependencies: *quality_dependencies
         pass_filenames: false
         always_run: true
         stages: [pre-commit]
