@@ -2,13 +2,21 @@
 
 <!-- Concrete problem and resulting behavior. -->
 
-## Changes and validation
+## Changes
 
-<!-- Actual changes, relevant commands/results, independent review, and limitations. -->
+<!-- What changed and why. -->
 
 ## Ownership and scope
 
-<!-- Named owner, exact task scope, dependencies, and any explicitly excluded remainder.
-Use applicable Claims/Resolves markers from docs/TODO_GUIDE.md. Direct user tasks
-need no invented queue entry. Keep draft while checks/review are incomplete; leave
-final review and landing to the user. -->
+<!-- Named owner, exact scope and dependencies. Applicable claim/resolution/filed
+markers go one per line; direct user requests need no invented queue entry. -->
+
+## Validation
+
+<!-- Commands actually run, results, and limits. Finding fixes need a runnable
+scenario with setup, actions, old failure, and expected corrected behavior. -->
+
+## Review
+
+<!-- Independent reviewer, exact reviewed commit, scope, checks, findings and
+verified dispositions. Keep draft while checks or review remain incomplete. -->

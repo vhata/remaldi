@@ -54,3 +54,15 @@ A subsequent independent incremental review confirms historical closure by
 inspecting current code and rerunning the original executed reproduction. Merge
 alone does not close a historical finding. If verification fails or is unavailable,
 keep the finding Open/Moved and restore/update mappings rather than claiming closure.
+
+Record a default-branch revision for codebase reviews; preserve retrievable trees
+and record exact correspondence if reviewing an unmerged release branch. Findings
+use Bug, Design, Duplication, Performance, Test, Style, Tooling, Docs or Security,
+and distinguish Verified (executed) from Read (inspection). After a finding fix
+lands, add its commit, reviewer and evidence to the index's Pending reconciliation
+list; the next incremental review verifies closure and clears the row.
+
+`bash scripts/workflow/review-due.sh --paths "remaldi tests"` reports drift;
+default thresholds are 25 commits or 21 days for incremental review and source
+insertions over one third of current source since the latest full review. The
+report is advisory and never authorizes implementing findings or fakes a baseline.

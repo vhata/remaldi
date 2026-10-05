@@ -9,8 +9,9 @@ Do not create parallel issue and Markdown queues for the same tasks.
 
 Needs triage means the outcome/dependencies are unclear. Needs proof of concept
 means a bounded experiment must establish an implementable contract. Ready for
-separate work means the outcome and verification are understood. Dependencies can
-still block a ready task; ready does not mean assigned, authorized, or available.
+separate work means the outcome and verification are understood and unblocked.
+An unresolved queue dependency or external blocker keeps the task in Needs triage
+or Needs proof of concept. Ready does not itself grant assignment or authorization.
 Move entries between stages without changing their stable ID.
 
 Use P0 Critical only for evidence-backed active security/data-loss/release blockers;
@@ -35,7 +36,8 @@ include the named owner, exact scope, dependencies, and applicable markers. A
 local branch alone is not a globally visible claim. If GitHub is unavailable,
 retain the queue entry and disclose the visibility/publication limitation.
 
-Use a dedicated branch and isolated worktrees for concurrent writers. After the
+Use a dedicated branch and worktree for every task; concurrent writers have
+disjoint ownership. After the
 first meaningful commit publish a draft PR; keep source entries while work is
 underway. Small factual doc corrections may use proportionate review/checks.
 Abandoned work releases its claim and retains/restores its queue entry.
@@ -76,3 +78,17 @@ Ready PRs have complete implementation, relevant checks, and independent review
 with no unresolved actionable findings. Mark them ready, but do not merge without
 user delegation. If gates fail later, restore draft and the appropriate queue/claim
 mapping. Implementation resolution does not rewrite historical review snapshots.
+
+Use one exact marker per line, without backticks or trailing explanations. Filed
+discoveries use `Files TODO: <slug>`. Run
+`bash scripts/workflow/check-pr-markers.sh --body <file>` before publication;
+CI validates the body against base/head queues. The installed tools implement
+claim discovery, branch/worktree creation, queue validation and cleanup so workers
+without the global skill use the same process.
+
+Entry areas are `[BROWSER]`, `[STATE]`, `[ACCEPTANCE]`, `[CLIENT]`, `[SERVICE]`,
+`[TRANSPORT]`, `[TOOLING]`, and `[DOCS]`. Use `Depends on: `slug`` only for
+unresolved queued work and `Blocked by:` for external conditions. Stable slugs and
+Source lines survive moves. Run `bash scripts/workflow/check-queues.sh --strict`
+after editing either queue. Once a blocker clears, drop the line and reassess
+readiness; preserve acceptance conditions when splitting or partially resolving.

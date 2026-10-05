@@ -101,3 +101,12 @@ gates, and live acceptance boundaries. Start agent work with [AGENTS.md](AGENTS.
 | What could be worked on next? | [TODO.md](TODO.md), with [selection rules](docs/TODO_GUIDE.md) |
 | What is currently claimed? | Open GitHub PRs and their ownership/claim markers; check branches/worktrees too. |
 | What has a codebase review found? | [Review history](review/README.md) and [promoted backlog](review/BACKLOG.md) |
+
+## Contributor workflow
+
+Start with [AGENTS.md](AGENTS.md) for ownership and process, then
+[the quality guide](docs/QUALITY.md) for environment setup and checks.
+Ordinary follow-ups are in [TODO.md](TODO.md); promoted codebase-review work is
+in [review/BACKLOG.md](review/BACKLOG.md). Open PRs are shared active claims.
+
+[![Main validation](https://github.com/vhata/remaldi/actions/workflows/main-validation.yml/badge.svg)](https://github.com/vhata/remaldi/actions/workflows/main-validation.yml)

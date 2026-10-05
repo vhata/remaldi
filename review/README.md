@@ -10,3 +10,11 @@ the current inventory; prior merged snapshots remain immutable.
 
 Promoted work lives in [BACKLOG.md](BACKLOG.md). Ordinary discoveries live in
 [TODO.md](../TODO.md); open PRs provide shared active claims.
+
+| Review (UTC) | Type | Reviewed commit | Open findings at close |
+| --- | --- | --- | --- |
+
+## Pending reconciliation
+
+| Finding | Fix PR and commit | Reviewer | Evidence |
+| --- | --- | --- | --- |

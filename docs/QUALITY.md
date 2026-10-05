@@ -2,19 +2,18 @@
 
 ## Setup and entrypoints
 
-Use Python 3.12 for development and CI. In the activated environment:
+Use Python 3.12 for development and CI. Locally use the installed Python 3.12 environment:
 
 ```bash
-python -m pip install -e '.[dev]'
-python -m pre_commit install --hook-type pre-commit --hook-type pre-push
+bash scripts/setup.sh
 scripts/format.sh
-scripts/check.sh
-python -m build
+REMALDI_PYTHON=/Users/jonathan.hitchcock/.venv/3.12/bin/python scripts/check.sh
+/Users/jonathan.hitchcock/.venv/3.12/bin/python -m build
 ```
 
 `format.sh` fixes Ruff lint and formatting. `check.sh` checks formatting, Ruff,
 strict mypy for application modules, secrets in publishable files/reachable Git
-history, and the unittest suite. Tests are linted/formatted but not strict-typed.
+history, the nonempty unittest suite, strict queue validation, and Markdown links. Tests are linted/formatted but not strict-typed.
 Standalone scripts use `python3` from the active environment; `REMALDI_PYTHON`
 selects another interpreter. CI shares the gate on macOS/Linux and builds wheel
 and source distributions with complete Git history available for the secret scan.
@@ -22,7 +21,7 @@ and source distributions with complete Git history available for the secret scan
 Git hooks create/reuse a managed Python 3.12 environment with required tools.
 Python 3.12 must be installed, but commits/pushes do not require an activated
 virtualenv. Initial runs download dependencies. Commit hooks lint/format changed
-Python files and audit secrets; push hooks run the complete gate and ignore an
+Python files, audit secrets, and validate queues/links; push hooks run the complete gate and ignore an
 ambient `REMALDI_PYTHON` override. Keep hook dependency pins aligned with pyproject
 dev dependencies when upgrading. Hook checks remain mandatory for pushes even
 when a scoped documentation change only needs link/content review beforehand.
@@ -66,3 +65,36 @@ names in public evidence, or commit captured profile data.
 
 Current unchecked scenarios live in SPEC/TODO. This guide defines how to validate
 them; it does not assign or authorize those tasks.
+
+## CI and hosting
+
+`Checks` runs the shared gate and package build on Linux and macOS for PRs and
+pushes to main. PR runs validate body markers against base/head queue snapshots;
+body edits also rerun CI. PR supersessions cancel previous runs; main pushes do
+not. Jobs time out after 15 minutes. `Main validation` runs daily, manually,
+and on PRs changing its workflow, repeating checks/build and reporting review
+drift with seven-day package/report artifacts. It never operates a live browser.
+The first scheduled main run can occur only after the user lands this setup.
+
+On a red main run, revert with authorization or file a P1 TODO the same day
+(P0 if releases are blocked), with run link and evidence. Keep it open until
+main passes; a passing fix branch does not establish recovery. A missing scheduled
+run is not a pass. GitHub schedules are best-effort and can become inactive.
+
+Protection inspection on 2026-10-04 returned HTTP 403: this private repository's
+plan does not expose branch protection. No hosting settings were changed, and
+these gates do not imply enforced merge restrictions. Recommended user-applied
+settings when available: required `check (ubuntu-latest)` and
+`check (macos-latest)` checks on current base; linear history, resolved
+conversations, blocked force pushes/deletions, administrator enforcement, squash
+only, PR title/body as squash message, delete merged head branches. Zero required
+forge approvals is compatible with recorded independent agent review; the user
+still owns final review. Scheduled validation is not a required PR check.
+
+After an authorized squash merge, run
+`bash scripts/workflow/cleanup-landed.sh` first in dry-run mode, inspect dirty or
+ignored evidence, then `--apply` only for clean landed work. Preserve unmerged
+commits and dirty trees; do not delete them without authorization. Rebase stacked
+children onto main, retarget their PRs, rerun their checks/review as needed, and
+inspect main's latest CI. A completed child can be ready for review but cannot
+land until its parent lands and its checks pass on the current main base.

@@ -11,3 +11,7 @@ htmlcov/
 .env.*
 *.log
 .DS_Store
+.worktrees/
+.feral/
+AUDIT.md
+.evidence/

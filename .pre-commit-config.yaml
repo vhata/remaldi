@@ -39,3 +39,10 @@ repos:
         pass_filenames: false
         always_run: true
         stages: [pre-commit]
+      - id: workflow-records
+        name: Workflow queues and documentation links
+        entry: bash -c 'bash scripts/workflow/check-queues.sh --strict && bash scripts/workflow/check-links.sh'
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [pre-commit]
