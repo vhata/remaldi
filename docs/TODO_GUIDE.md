@@ -87,7 +87,7 @@ claim discovery, branch/worktree creation, queue validation and cleanup so worke
 without the global skill use the same process.
 
 Entry areas are `[BROWSER]`, `[STATE]`, `[ACCEPTANCE]`, `[CLIENT]`, `[SERVICE]`,
-`[TRANSPORT]`, `[TOOLING]`, and `[DOCS]`. Use `Depends on: `slug`` only for
+`[TRANSPORT]`, `[TOOLING]`, and `[DOCS]`. Use ``Depends on: `slug` `` only for
 unresolved queued work and `Blocked by:` for external conditions. Stable slugs and
 Source lines survive moves. Run `bash scripts/workflow/check-queues.sh --strict`
 after editing either queue. Once a blocker clears, drop the line and reassess
