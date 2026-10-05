@@ -1,0 +1,39 @@
+name: Main validation
+on:
+  schedule:
+    - cron: '17 9 * * *'
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - '.github/workflows/main-validation.yml'
+permissions:
+  contents: read
+concurrency:
+  group: main-validation-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+      - run: python -m pip install -e '.[dev]'
+      - run: scripts/check.sh
+      - run: python -m build
+      - name: Report review drift
+        shell: bash
+        run: bash scripts/workflow/review-due.sh --paths "remaldi tests" | tee review-due.txt
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: validation-evidence
+          path: |
+            review-due.txt
+            dist/*
+          retention-days: 7
