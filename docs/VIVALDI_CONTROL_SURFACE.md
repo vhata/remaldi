@@ -221,7 +221,8 @@ LC_ALL=C comm -23 commands.txt registered.txt   # the 29 strings that are not re
 
 The `vivaldi.actions` preference stores shortcuts and gestures. Its defaults (a
 generic, a Mac and a Linux set) list the commands that ship with a default
-binding. This is a subset of the registry, not the full set of bindable commands:
+binding. Nearly all of them are registered commands, but they are far from the
+full set of bindable commands:
 
 ```bash
 jq -r '[.vivaldi.actions.default[0], .vivaldi.actions.default_mac[0], .vivaldi.actions.default_linux[0]]
@@ -353,8 +354,9 @@ ID as a string:
 grep -oE '.{40}"JS_LOCAL_ACTIVATE_WORKSPACE",s=t\.id\.toString\(\).{80}' "$VIVALDI_RES/bundle.js"
 ```
 
-The workspace activation behaviour in the first row comes from the function
-that `setActiveWorkspace` calls. On 8.2 it is the only one containing
+The workspace activation behaviour in the first row comes from
+`setActiveWorkspace` itself (exported as `setActiveWorkspace:Ne` on 8.2). It is
+the only function containing
 `"SET_ACTIVE_WORKSPACE",windowId:e,workspaceId:t`:
 
 ```bash
