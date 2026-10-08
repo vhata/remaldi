@@ -38,6 +38,7 @@ before calling ready work available. Priorities below are intentionally unassign
   - Source: Vivaldi control-surface audit, 2026-10-08, Vivaldi 8.2.4133.84;
     [docs/VIVALDI_CONTROL_SURFACE.md](docs/VIVALDI_CONTROL_SURFACE.md) ("Events").
   - Starting point: `EVENT_HOOKS` and `__remaldiChanged` in `browser.py`; protocol version 1 in `protocol.py`.
+  - Dependencies: none.
   - Triage outcome: decide whether a long-lived streaming response fits protocol
     version 1 or needs a new version; which event sources are worth exposing;
     and back-pressure, filtering and privacy (events carry URLs and titles).
@@ -47,6 +48,7 @@ before calling ready work available. Priorities below are intentionally unassign
   - Source: Vivaldi control-surface audit, 2026-10-08, Vivaldi 8.2.4133.84;
     [docs/VIVALDI_CONTROL_SURFACE.md](docs/VIVALDI_CONTROL_SURFACE.md) ("Browser UI changes").
   - Starting point: target discovery in `browser.py`; the `window.html` target.
+  - Dependencies: none.
   - Triage outcome: whether this is wanted; where styles are stored; how to
     reapply after UI reloads, reconnection and new windows; how to remove them;
     and how several windows map onto `window.html` targets (one window was observed).
@@ -57,6 +59,7 @@ before calling ready work available. Priorities below are intentionally unassign
   - Source: Vivaldi control-surface audit, 2026-10-08, Vivaldi 8.2.4133.84;
     [docs/VIVALDI_CONTROL_SURFACE.md](docs/VIVALDI_CONTROL_SURFACE.md) ("What not to wrap").
   - Starting point: the `raw` operation in `service.py`; README's raw access section.
+  - Dependencies: none.
   - Triage outcome: guard, warn or document only. A guard over evaluated JavaScript
     cannot be complete, and the debugging port is reachable without Remaldi, so
     any guard only prevents accidents.
@@ -71,6 +74,7 @@ before calling ready work available. Priorities below are intentionally unassign
     [docs/VIVALDI_CONTROL_SURFACE.md](docs/VIVALDI_CONTROL_SURFACE.md) ("Private APIs").
   - Starting point: `vivaldi.tabsPrivate.update`/`unstack`/`setGroupProperties`,
     tab `vivExtData`, and the `COMMAND_TAB_STACK_*` registry entries in `bundle.js`.
+  - Dependencies: none.
   - Experiment: from bundle call sites, establish how stacks and tiles are encoded in
     `vivExtData` and which calls create, rename, dissolve and tile them for given
     tab IDs. Then confirm with one authorized, reversible live change on disposable tabs.
@@ -83,6 +87,7 @@ before calling ready work available. Priorities below are intentionally unassign
     [docs/VIVALDI_CONTROL_SURFACE.md](docs/VIVALDI_CONTROL_SURFACE.md) ("Workspace switching").
   - Starting point: the `WORKSPACE_MOVE_TABS_TO_` registry entries and their store
     actions in `bundle.js`; `vivaldi.tabsPrivate.update`.
+  - Dependencies: none.
   - Experiment: find the store call the move command uses and whether writing
     `vivExtData.workspaceId` alone updates the UI. Confirm with one authorized
     live move of a disposable tab.
@@ -95,6 +100,7 @@ before calling ready work available. Priorities below are intentionally unassign
     [docs/VIVALDI_CONTROL_SURFACE.md](docs/VIVALDI_CONTROL_SURFACE.md) ("Local actions that take a parameter", "Private APIs").
   - Starting point: `vivaldi.sessionsPrivate.getAll`/`add`/`open`;
     `JS_LOCAL_OPEN_SESSION` in `bundle.js`.
+  - Dependencies: none.
   - Experiment: establish the read-only `getAll` result shape (counts and field
     names only) and the `add`/`open` arguments from bundle call sites. Confirm
     saving with one authorized live save that the user then deletes.
@@ -106,6 +112,7 @@ before calling ready work available. Priorities below are intentionally unassign
   - Source: Vivaldi control-surface audit, 2026-10-08, Vivaldi 8.2.4133.84;
     [docs/VIVALDI_CONTROL_SURFACE.md](docs/VIVALDI_CONTROL_SURFACE.md) ("DevTools protocol on web tabs", "Private APIs").
   - Starting point: `Page.captureScreenshot` on page targets; `vivaldi.thumbnails.captureTab`/`captureUI`.
+  - Dependencies: none.
   - Experiment: compare the two sources for background tabs, hidden workspaces and
     the UI itself, and their output sizes against the 8 MiB response limit.
   - Acceptance: a chosen source, an output contract (client-side file path, format,
@@ -151,11 +158,16 @@ before calling ready work available. Priorities below are intentionally unassign
     dispatch and window selection; land one first and rebase the other.
   - Contract: dispatch `vivaldi.menubar.onActivated.dispatch(windowId,
     'JS_LOCAL_ACTIVATE_WORKSPACE', String(workspaceId))`, the path the native
-    Window menu uses. Keep the decimal ID validation and window selection.
-    Reject a minimized target window with a structured error, because its
-    handler ignores dispatches.
-  - Acceptance: tests assert the dispatched action and parameter and cover the
-    minimized-window rejection. The README describes ID semantics and that
+    Window menu uses. Keep the decimal ID validation and window selection. In
+    the same evaluated expression as the dispatch, first confirm that the ID is in
+    `vivaldi.workspaces.list` (an unknown ID makes Vivaldi create a tab tagged with
+    it) and that `chrome.windows.get(windowId)` is not minimized (minimized windows
+    ignore dispatches). Fail with a structured error otherwise, without dispatching.
+    A workspace already active in another window focuses that window instead of
+    switching the requested one. Document this rather than treat it as an error.
+  - Acceptance: tests assert the dispatched action and parameter, the unknown-ID
+    and minimized-window rejections, and that rejection happens before dispatch.
+    The README describes ID semantics, the focus-other-window case, and that
     success confirms dispatch only. Visible switching stays with
     `verify-live-workspace-switch`.
 
@@ -168,17 +180,22 @@ before calling ready work available. Priorities below are intentionally unassign
     `switch_workspace` in `adapter.py`; CLI parsing in `__main__.py`.
   - Dependencies: none. Coordinate with `fix-workspace-switch-by-id` on shared adapter code.
   - Contract: `command run NAME [--parameter TEXT] [--window-id ID]` and `command list`.
-    Allowed names are the keys of the live `vivaldi.actions` preference's `value[0]`
-    and `defaultValue[0]`, plus the local actions in the guide's table. Always deny
-    `COMMAND_EXIT`, `COMMAND_QUIT_MAC_MAYBE_WARN`, `COMMAND_CLOSE_WINDOW`,
-    `COMMAND_MAIL_DELETE_PERMANENTLY`, `COMMAND_EXPORT_PASSWORDS`,
-    `COMMAND_MANAGE_PEOPLE`, `JS_LOCAL_CLEAR_CLOSED_TABS` and
-    `JS_LOCAL_CLEAR_CLOSED_WEBPANELS`. Window selection matches workspace
-    switching, and minimized windows are rejected. The result confirms dispatch
-    only. Mutations serialize, invalidate state and are never replayed.
-    `command list` returns names with an allowed flag and no bindings.
-  - Acceptance: tests cover allowed, denied, unknown and parameterised names,
-    window selection, minimized rejection, no-replay and invalidation. The README
+    The allowlist is a curated list committed in Remaldi, taken from the guide's
+    `registered.txt` procedure plus the local-action table, and labelled with the
+    Vivaldi version it came from. `vivaldi.actions` is not a source because it
+    only holds bound commands and may contain user chain names. Chains are not
+    allowed, because dispatching a chain's name runs steps the denylist cannot
+    check. Always deny `COMMAND_EXIT`, `COMMAND_QUIT_MAC_MAYBE_WARN`,
+    `COMMAND_CLOSE_WINDOW`, `COMMAND_MAIL_DELETE_PERMANENTLY`,
+    `COMMAND_EXPORT_PASSWORDS`, `COMMAND_MANAGE_PEOPLE`,
+    `JS_LOCAL_CLEAR_CLOSED_TABS` and `JS_LOCAL_CLEAR_CLOSED_WEBPANELS`.
+    `--parameter` applies only to local actions. Window selection matches
+    workspace switching. Check for a minimized window in the same expression as
+    the dispatch. The result confirms dispatch only. Mutations serialize,
+    invalidate state and are never replayed. `command list` returns names with an
+    allowed flag and no bindings.
+  - Acceptance: tests cover allowed, denied, unknown, chain and parameterised
+    names, window selection, minimized rejection, no-replay and invalidation. The README
     documents the commands and their dispatch-only result. One authorized live
     toggle (for example `COMMAND_MAIN_TOGGLE_TAB_BAR` dispatched twice) is
     observed or reported as a limitation.
