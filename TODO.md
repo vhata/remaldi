@@ -35,15 +35,25 @@ before calling ready work available. Priorities below are intentionally unassign
 
 ### Unprioritized
 
-- [STATE] `discover-workspace-enumeration` — **Identify a usable workspace listing API in the running Vivaldi UI.** The first live check found the current probe
-  unsupported; do not promise listing from generic DevTools connectivity alone.
-  - Source: read-only live acceptance, 2026-10-02; SPEC foundation evidence.
-  - Starting point: `adapter.py` snapshot probe and capability fallback.
-  - Experiment: read-only API discovery; record support/version without private
-    names or browsing data. Produce an implementation-ready contract or limitation.
+No entries.
 
 ## Ready for separate work
 
 ### Unprioritized
 
-No entries.
+- [STATE] `implement-workspace-enumeration` — **Report workspaces from Vivaldi's workspace preference.** Vivaldi 8.2 has
+  no `vivaldi.workspaces` API, so snapshots always report workspaces unsupported.
+  - Source: `discover-workspace-enumeration` read-only live probe, 2026-10-08,
+    Vivaldi 8.2.4133.84.
+  - Starting point: `SNAPSHOT` in `adapter.py` and `EVENT_HOOKS` in `browser.py`.
+  - Contract: `vivaldi.prefs.get('vivaldi.workspaces.list', callback)` yields
+    `{value, defaultValue, store}`. `value` lists `{id, name, icon, emoji?}` with
+    unique nonnegative safe-integer IDs in the decimal form `switch_workspace`
+    accepts; switching to them is unverified. `icon` is inline SVG; omit it. A tab's membership is the numeric
+    `workspaceId` in its `vivExtData` JSON; tabs without one are in no workspace.
+    A missing `prefs.get` or malformed value is unsupported. `vivaldi.prefs.onChanged`
+    and `vivaldi.tabsPrivate.onExtDataChanged` exist but were not observed firing;
+    keep the TTL fallback.
+  - Acceptance: tests cover the supported shape, malformed values, and fallback;
+    a read-only live check reports the workspace capability and IDs without
+    committing names. A window's active workspace is out of scope until verified.
