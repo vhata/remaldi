@@ -16,8 +16,10 @@ switching is the first friendly mutation, not the boundary of the product.
 | Friendly workspace dispatch and raw/evaluate access | Automated dispatch tests; live raw request checked on 2026-10-02. Visible workspace switching remains unverified. |
 | Python quality gates, secret audit, package builds, MIT license | Executable gates; macOS/Linux CI passed at `83b49ee`. This is not browser acceptance. |
 
-The historical live check found workspace enumeration unsupported by the probed
-API. The current fallback is `workspaces: null` with capability false. Do not
+Vivaldi 8.2.4133.84 has no `vivaldi.workspaces` API, so the snapshot reports
+`workspaces: null` with capability false. A read-only probe on 2026-10-08 found
+the list in the `vivaldi.workspaces.list` preference and tab membership in tab
+`vivExtData`; `implement-workspace-enumeration` in TODO adopts that source. Do not
 describe an unsupported or unverified capability as delivered browser behavior.
 
 ## Remaining foundation acceptance

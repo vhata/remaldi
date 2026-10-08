@@ -35,15 +35,33 @@ before calling ready work available. Priorities below are intentionally unassign
 
 ### Unprioritized
 
-- [STATE] `discover-workspace-enumeration` — **Identify a usable workspace listing API in the running Vivaldi UI.** The first live check found the current probe
-  unsupported; do not promise listing from generic DevTools connectivity alone.
-  - Source: read-only live acceptance, 2026-10-02; SPEC foundation evidence.
-  - Starting point: `adapter.py` snapshot probe and capability fallback.
-  - Experiment: read-only API discovery; record support/version without private
-    names or browsing data. Produce an implementation-ready contract or limitation.
+No entries.
 
 ## Ready for separate work
 
 ### Unprioritized
 
-No entries.
+- [STATE] `implement-workspace-enumeration` — **Report workspaces from Vivaldi's workspace preference.** Vivaldi 8.2 has
+  no `vivaldi.workspaces` API, so snapshots always report workspaces unsupported.
+  - Source: `discover-workspace-enumeration` read-only live probe, 2026-10-08,
+    Vivaldi 8.2.4133.84.
+  - Starting point: `SNAPSHOT` in `adapter.py` and `EVENT_HOOKS` in `browser.py`.
+  - Dependencies: none.
+  - Contract: `vivaldi.prefs.get('vivaldi.workspaces.list', callback)` yields
+    `{value, defaultValue, store}`. `value` lists `{id, name, icon, emoji?}` with
+    unique nonnegative safe-integer IDs in the decimal form `switch_workspace`
+    accepts; switching to them is unverified. An unknown path sets
+    `chrome.runtime.lastError` rather than throwing.
+  - Output: `workspaces` becomes a list of `{id, name, emoji}` (`emoji` null when
+    absent; `icon` is inline SVG and is omitted) and the capability is true. Each
+    tab gains `workspace_id`, the numeric `workspaceId` from its `vivExtData` JSON,
+    or null. Tabs in no workspace and web-panel tabs (`panelId`) both have null.
+    A missing `prefs.get`, `lastError`, or malformed value keeps `workspaces: null`
+    with capability false instead of failing the snapshot.
+  - Events: replace the absent `vivaldi.workspaces` hooks in `EVENT_HOOKS` with
+    `vivaldi.prefs.onChanged`, limited to this path once its argument shape is
+    checked, and `vivaldi.tabsPrivate.onExtDataChanged`. Neither was observed
+    firing; keep the TTL fallback.
+  - Acceptance: tests cover the supported shape, tab membership, malformed values,
+    `lastError`, and fallback; a read-only live check reports the capability and
+    IDs without committing names. A window's active workspace is out of scope.
