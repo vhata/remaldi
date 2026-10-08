@@ -29,8 +29,7 @@ Python setup and executable quality gates live in [docs/QUALITY.md](docs/QUALITY
 
 - Every task uses one branch and one worktree, including solo work. New branches
   use `todo/<slug>`, `review/<slug>`, or `fix/<slug>` for direct requests.
-  `workflow-foundation` is the existing setup branch, retained without rewriting
-  its history. Worktrees live in ignored `.worktrees/`.
+  Worktrees live in ignored `.worktrees/`.
 - Run `bash scripts/workflow/claim-check.sh <slug>` before claiming, then
   `bash scripts/workflow/start-work.sh <queue> <slug>`. Coordinate any hit.
 - PR bodies open with `## Why` and record scope, markers, validation, and
