@@ -46,14 +46,22 @@ No entries.
   - Source: `discover-workspace-enumeration` read-only live probe, 2026-10-08,
     Vivaldi 8.2.4133.84.
   - Starting point: `SNAPSHOT` in `adapter.py` and `EVENT_HOOKS` in `browser.py`.
+  - Dependencies: none.
   - Contract: `vivaldi.prefs.get('vivaldi.workspaces.list', callback)` yields
     `{value, defaultValue, store}`. `value` lists `{id, name, icon, emoji?}` with
     unique nonnegative safe-integer IDs in the decimal form `switch_workspace`
-    accepts; switching to them is unverified. `icon` is inline SVG; omit it. A tab's membership is the numeric
-    `workspaceId` in its `vivExtData` JSON; tabs without one are in no workspace.
-    A missing `prefs.get` or malformed value is unsupported. `vivaldi.prefs.onChanged`
-    and `vivaldi.tabsPrivate.onExtDataChanged` exist but were not observed firing;
-    keep the TTL fallback.
-  - Acceptance: tests cover the supported shape, malformed values, and fallback;
-    a read-only live check reports the workspace capability and IDs without
-    committing names. A window's active workspace is out of scope until verified.
+    accepts; switching to them is unverified. An unknown path sets
+    `chrome.runtime.lastError` rather than throwing.
+  - Output: `workspaces` becomes a list of `{id, name, emoji}` (`emoji` null when
+    absent; `icon` is inline SVG and is omitted) and the capability is true. Each
+    tab gains `workspace_id`, the numeric `workspaceId` from its `vivExtData` JSON,
+    or null. Tabs in no workspace and web-panel tabs (`panelId`) both have null.
+    A missing `prefs.get`, `lastError`, or malformed value keeps `workspaces: null`
+    with capability false instead of failing the snapshot.
+  - Events: replace the absent `vivaldi.workspaces` hooks in `EVENT_HOOKS` with
+    `vivaldi.prefs.onChanged`, limited to this path once its argument shape is
+    checked, and `vivaldi.tabsPrivate.onExtDataChanged`. Neither was observed
+    firing; keep the TTL fallback.
+  - Acceptance: tests cover the supported shape, tab membership, malformed values,
+    `lastError`, and fallback; a read-only live check reports the capability and
+    IDs without committing names. A window's active workspace is out of scope.
