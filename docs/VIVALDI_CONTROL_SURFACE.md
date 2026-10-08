@@ -33,8 +33,13 @@ The debugging endpoint is plain HTTP on loopback. Bypass any proxy:
 
 ```bash
 curl -s --noproxy '*' http://127.0.0.1:9222/json/version
-curl -s --noproxy '*' http://127.0.0.1:9222/json/list | jq -r '.[] | "\(.type)\t\(.url)"'
+curl -s --noproxy '*' http://127.0.0.1:9222/json/list | jq -r 'group_by(.type)[] | "\(.[0].type)\t\(length)"'
+curl -s --noproxy '*' http://127.0.0.1:9222/json/list |
+  jq -r '.[] | select(.url | startswith("chrome-extension://mpognobbkildjkofajifpdfhcoklimli/")) | "\(.type)\t\(.url)"'
 ```
+
+The first command counts targets by type. The second lists only Vivaldi's own UI
+targets. Printing every target's URL would show your open tabs.
 
 `/json/version` reports the Vivaldi version as `Browser` (it says `Chrome/8.2...`).
 `/json/list` has one entry per target: every web tab (`page`), iframes, workers,
@@ -43,8 +48,8 @@ and Vivaldi's own UI. The UI is a built-in extension with ID
 
 | Target URL suffix | What it is (Live) |
 | --- | --- |
-| `mpognobbkildjkofajifpdfhcoklimli/main.html` | A nearly empty document (8 elements). It has the full `vivaldi.*` and `chrome.*` API set. Remaldi's default target. |
-| `mpognobbkildjkofajifpdfhcoklimli/window.html` | The rendered browser UI: about 900 elements, a `#browser` root, and a numeric `window.vivaldiWindowId`. Target this to style or alter the UI. |
+| `mpognobbkildjkofajifpdfhcoklimli/main.html` | A nearly empty document (8 elements) with the full `vivaldi.*` and `chrome.*` API set. Remaldi's default target. |
+| `mpognobbkildjkofajifpdfhcoklimli/window.html` | The rendered browser UI: around a thousand elements (the count varies), a `#browser` root, and a numeric `window.vivaldiWindowId`. It has the same APIs. Target this to style or alter the UI. |
 
 How several browser windows map onto `window.html` targets is Unverified. The
 probe ran with one window open.
@@ -96,7 +101,7 @@ vivaldi_eval() {
     '{id: 1, method: "Runtime.evaluate",
       params: {expression: $expr, awaitPromise: true, returnByValue: true}}' |
     websocat -n1 -B 67108864 "$ws" |
-    jq '.result.result.value // .result'
+    jq 'if (.result.result | has("value")) then .result.result.value else .result end'
 }
 
 vivaldi_eval 'typeof vivaldi.menubar.onActivated.dispatch'   # "function"
@@ -151,7 +156,7 @@ new Promise(r => vivaldi.prefs.get('vivaldi.workspaces.enabled',
   v => r(chrome.runtime.lastError ? {error: chrome.runtime.lastError.message} : v)))
 ```
 
-`vivaldi.prefs.get` returns `{value, defaultValue, store}`.
+`vivaldi.prefs.get` passes `{value, defaultValue, store}` to its callback.
 
 Function names do not document argument shapes. Before using a function, find
 its call sites in the bundle (Step 5) or ask for its shape with `.length` and
@@ -195,22 +200,39 @@ The files that matter:
 ### Command names
 
 ```bash
-grep -oE 'COMMAND_[A-Z0-9_]+' "$VIVALDI_RES/bundle.js" | sort -u > commands.txt
+grep -oE 'COMMAND_[A-Z0-9_]+' "$VIVALDI_RES/bundle.js" | LC_ALL=C sort -u > commands.txt
 wc -l commands.txt     # 368 on 8.2
 ```
 
-This is every string that looks like a command, including UI prefixes such as
+This is every string that looks like a command. It includes store action
+types such as `COMMAND_INITIALIZE`, category suffixes, and UI prefixes such as
 `COMMAND_WORKSPACE_SWITCH_` that the code tests with `startsWith`. Appendix C has
 the grouped list.
 
-The commands users can bind to keys and gestures are the keys of the default
-`vivaldi.actions` preference. It has a generic, a Mac and a Linux default:
+The command registry is the set that dispatch can run. Each entry has the form
+`{name:"COMMAND_...",action:...}`:
+
+```bash
+grep -oE '\{name:"COMMAND_[A-Z0-9_]+",action:' "$VIVALDI_RES/bundle.js" |
+  sed -E 's/\{name:"(.*)",action:/\1/' | LC_ALL=C sort -u > registered.txt
+wc -l registered.txt   # 339 on 8.2
+LC_ALL=C comm -23 commands.txt registered.txt   # the 29 strings that are not registered commands
+```
+
+The `vivaldi.actions` preference stores shortcuts and gestures. Its defaults (a
+generic, a Mac and a Linux set) list the commands that ship with a default
+binding. This is a subset of the registry, not the full set of bindable commands:
 
 ```bash
 jq -r '[.vivaldi.actions.default[0], .vivaldi.actions.default_mac[0], .vivaldi.actions.default_linux[0]]
-       | map(keys) | add | unique | .[]' "$VIVALDI_RES/prefs_definitions.json" > bindable.txt
-wc -l bindable.txt     # 190 on 8.2, all present in commands.txt
+       | map(keys) | add | unique | .[]' "$VIVALDI_RES/prefs_definitions.json" | LC_ALL=C sort > default-bound.txt
+wc -l default-bound.txt   # 190 on 8.2
+LC_ALL=C comm -23 default-bound.txt registered.txt   # 2 on 8.2: MAIL_COMPOSER_DOCK and _UNDOCK
 ```
+
+Sort with `LC_ALL=C` everywhere, or `comm` compares the lists incorrectly. Many
+useful commands have no default binding, for example `TAB_STACK_CREATE`,
+`PIN_TAB`, `CLONE_TAB` and `SAVE_SESSION`.
 
 Commands that appear in the default menus:
 
@@ -218,8 +240,7 @@ Commands that appear in the default menus:
 jq -r '.. | objects | select(.type == "command") | .action' "$VIVALDI_RES/menus/mainmenu.json" | sort -u
 ```
 
-To see how one command is defined, search for its registry entry. Registry
-entries have the form `{name:"COMMAND_...",action:...}`:
+To see how one command is defined, search for its registry entry:
 
 ```bash
 grep -oE '\{name:"COMMAND_TAB_STACK_CREATE",action:.{0,200}' "$VIVALDI_RES/bundle.js"
@@ -239,7 +260,7 @@ entries. These map Chromium constants such as `kNetworkPredictionOptions` to
 Chromium pref paths through a `path` field. Appendix D has counts per group.
 
 To learn the shape of a live value without reading its contents, return keys and
-counts only. This one reports how many bindable actions the profile has and
+counts only. This one reports how many commands have bindings in the profile and
 which fields they use:
 
 ```js
@@ -282,14 +303,25 @@ So, for `dispatch(windowId, name, parameter)`:
 
 - `windowId` must equal the target window's `vivaldiWindowId`, which is its
   `chrome.windows` ID. Other windows ignore the dispatch. **A minimized window
-  ignores it too.**
+  ignores it too.** The check reads Vivaldi's own window store, so a caller
+  should check `chrome.windows.get(windowId)` in the same expression as the
+  dispatch rather than rely on an older snapshot.
 - The handler first tries `executeLocalAction(windowId, name, parameter)`, a
   small set of actions that take `parameter` as a string (below). If none
   matches, `name` goes to `executeActions`, the registry used by keyboard
   shortcuts, gestures and Quick Commands. `parameter` is not passed to that
-  registry.
+  registry. A registry command whose definition has a default parameter
+  receives that default instead.
+- If `name` is not a registered command, `executeActions` looks for a
+  user-defined chain with that `name` in `vivaldi.chained_commands.command_list`
+  and runs its steps. It logs a lookup-failure warning either way. A chain can
+  contain any command, including the ones in [What not to wrap](#what-not-to-wrap).
 - The call returns nothing. An unknown name or a minimized window gives no
   error, so success means only that the event fired.
+
+```bash
+grep -oE 'executeActions\([a-z],[a-z],[a-z],[a-z]\)\{.{0,400}' "$VIVALDI_RES/bundle.js"
+```
 
 ### Local actions that take a parameter
 
@@ -301,17 +333,17 @@ grep -oE 'getHandlerByAction:\(e,t,n\)=>\{.{0,500}' "$VIVALDI_RES/bundle.js"
 
 | Name | Parameter | Effect on 8.2 (Static) |
 | --- | --- | --- |
-| `JS_LOCAL_ACTIVATE_WORKSPACE` | workspace ID | `setActiveWorkspace(windowId, parseInt(parameter))` |
+| `JS_LOCAL_ACTIVATE_WORKSPACE` | workspace ID | `setActiveWorkspace(windowId, parseInt(parameter))`. If the workspace is already active in any window, that window is focused instead. If no tab belongs to the ID, a start-page tab tagged with it is created, even when the ID is not in `vivaldi.workspaces.list`. |
 | `JS_LOCAL_ACTIVATE_TAB` | tab ID | Switches to the tab's workspace, then activates the tab |
 | `JS_LOCAL_ACTIVATE_WINDOW` | window ID | Focuses that window |
 | `JS_LOCAL_OPEN_SESSION` | saved session ID | Opens the saved session |
 | `JS_LOCAL_ADD_ACTIVE_TAB_TO_BOOKMARKS` | bookmark folder ID | Bookmarks the active tab in that folder |
 | `JS_LOCAL_TOGGLE_WEBPANEL`, `JS_LOCAL_RESTORE_WEBPANEL` | web panel ID | Toggles or restores a web panel |
-| `JS_LOCAL_REOPEN_CLOSED_TAB`, `JS_LOCAL_REOPEN_CLOSED_WINDOW` | closed item or session ID | Reopens it |
+| `JS_LOCAL_REOPEN_CLOSED_TAB`, `JS_LOCAL_REOPEN_CLOSED_WINDOW` | closed item or session ID | Reopens it during handler lookup. No handler is returned, so the name also reaches `executeActions` and logs a lookup warning. |
 | `JS_LOCAL_CLEAR_CLOSED_TABS`, `JS_LOCAL_CLEAR_CLOSED_WEBPANELS` | none | Empties the closed-items list |
 | `COMMAND_OPEN_LINK` | URL | Opens the URL using the link-opening setting |
-| `PERIODIC_RELOAD` | seconds | Reloads the active tab on a timer |
-| `PERIODIC_RELOAD_DISABLE` | `all` or anything else | Stops timed reloads for the window or the active tab |
+| `PERIODIC_RELOAD` | minutes | Reloads the active tab on a timer. Repeating the same interval removes the timer. |
+| `PERIODIC_RELOAD_DISABLE` | `all` or anything else | `all` stops timed reloads for tabs in the window's active workspace. Anything else stops the active tab's. |
 
 Vivaldi's own native Window menu builds its workspace items from the first row,
 with `commandName:"JS_LOCAL_ACTIVATE_WORKSPACE"` and `parameter:` the workspace
@@ -319,6 +351,14 @@ ID as a string:
 
 ```bash
 grep -oE '.{40}"JS_LOCAL_ACTIVATE_WORKSPACE",s=t\.id\.toString\(\).{80}' "$VIVALDI_RES/bundle.js"
+```
+
+The workspace activation behaviour in the first row comes from the function
+that `setActiveWorkspace` calls. On 8.2 it is the only one containing
+`"SET_ACTIVE_WORKSPACE",windowId:e,workspaceId:t`:
+
+```bash
+grep -oE 'async function [A-Za-z]+\(e,t,n\)\{if\(n\)return void await [A-Za-z]+\(e,t\);.{0,800}' "$VIVALDI_RES/bundle.js"
 ```
 
 None of these were exercised live.
@@ -374,14 +414,15 @@ described as an internal ID, with an empty parameter. Internal IDs are 13-digit
 numbers, so that name matches no registered command, and small numbers select by
 position. Dispatching `JS_LOCAL_ACTIVATE_WORKSPACE` with the ID as the parameter
 takes the same path as the native Window menu, with no position mapping and no
-nine-workspace limit. TODO `fix-workspace-switch-by-id` covers the change. None
-of this has been exercised live.
+nine-workspace limit. Because an unknown ID creates a tab, a caller must check
+the ID against `vivaldi.workspaces.list` first. TODO `fix-workspace-switch-by-id`
+covers the change. None of this has been exercised live.
 
 ## What can be driven
 
 ### Commands (via dispatch)
 
-The 190 bindable commands cover most of what a keyboard user can do, and the
+The 339 registered commands cover most of what a keyboard user can do, and the
 local actions above add parameterised workspace, tab, window, session and URL
 operations. Useful command groups:
 
@@ -394,11 +435,11 @@ operations. Useful command groups:
 | Panels | `SHOW_*_PANEL` (bookmarks, history, notes, downloads, mail, calendar, tasks, feeds, reading list, sessions, window, translate), `SHOW_WEB_PANEL_1`..`9`, `SHOW_NEXT_PANEL`/`_PREVIOUS_PANEL` |
 | Windows and focus | `NEW_TAB`, `NEW_BACKGROUND_TAB`, `NEW_WINDOW`, `NEW_PRIVATE_WINDOW`, `WINDOW_MINIMIZE`, `FOCUS_ADDRESSFIELD`/`_TABBAR`/`_PANEL`/`_WEBVIEW`, `SHOW_QUICK_COMMANDS` |
 | Sessions and data | `SAVE_SESSION`, `OPEN_SESSION`, `EXPORT_*`, `IMPORT_*` |
-| Mail and calendar | 38 `MAIL_*` and 16 `CALENDAR_*` commands |
+| Mail and calendar | 33 registered `MAIL_*` and 15 `CALENDAR_*` commands |
 
 User-defined command chains are stored in
-`vivaldi.chained_commands.command_list`. Whether dispatch can run a chain by
-name is Unverified.
+`vivaldi.chained_commands.command_list`. Dispatching a chain's `name` runs it
+(Static, see [How command dispatch works](#how-command-dispatch-works)).
 
 ### Private APIs (direct calls, with arguments)
 
@@ -464,16 +505,19 @@ These exist in the UI target and are reachable through `remaldi raw` or
 
 - **Browser lifecycle**, which would break the never-restart contract:
   `vivaldi.runtimePrivate.exit`/`restart`, `chrome.runtime.restart`/`reload`,
-  `vivaldi.autoUpdate.installUpdateAndRestart`, and the `EXIT` and
-  `QUIT_MAC_MAYBE_WARN` commands. `CLOSE_WINDOW` on the last window may also
-  quit the browser.
+  `vivaldi.autoUpdate.installUpdateAndRestart`,
+  `vivaldi.runtimePrivate.closeActiveProfile`/`switchToGuestSession`, and the
+  `EXIT` and `QUIT_MAC_MAYBE_WARN` commands. `CLOSE_WINDOW` on the last window
+  may also quit the browser. User-defined chains can contain any of these
+  commands.
 - **Secrets**: `vivaldi.savedpasswords.*`,
   `chrome.passwordsPrivate.requestPlaintextPassword`/`exportPasswords`,
   `vivaldi.utilities.osDecrypt`, `vivaldi.utilities.get*OAuthClientSecret` and
   `getGAPIKey`, `vivaldi.utilities.getEnvVars`,
-  `vivaldi.sync.backupEncryptionToken`, `chrome.autofillPrivate`.
+  `vivaldi.sync.backupEncryptionToken`, `chrome.autofillPrivate`,
+  `chrome.cookies` (session cookies), `chrome.identity.getAuthToken`.
 - **Destructive or profile-wide**: `vivaldi.prefs.resetAllToDefault`,
-  `vivaldi.runtimePrivate.deleteProfile`, `chrome.browsingData.*`,
+  `vivaldi.runtimePrivate.deleteProfile`, `vivaldi.sync.clearData`, `chrome.browsingData.*`,
   `chrome.history.deleteAll`, `vivaldi.mailPrivate` file writes and deletes,
   `vivaldi.utilities.silentlyInstallExtension`, `chrome.management.uninstall`,
   and the `MAIL_DELETE_PERMANENTLY` and `EXPORT_PASSWORDS` commands.
@@ -486,7 +530,7 @@ Remaldi's private socket does not reduce that exposure.
 
 1. Record the new version from `/json/version`.
 2. Re-run Step 3 and diff against Appendices A and B.
-3. Re-run the `commands.txt` and `bindable.txt` commands and diff against Appendix C.
+3. Re-run the `commands.txt`, `registered.txt` and `default-bound.txt` commands and diff against Appendix C.
 4. Re-run the dispatch and workspace greps. If the minified names changed,
    search for the unminified anchors instead: `menubar.onActivated.addListener`,
    `executeLocalAction`, `JS_LOCAL_`, `"COMMAND_WORKSPACE_SWITCH_2"`,
@@ -584,7 +628,8 @@ Live, 8.2.4133.84. Same format as Appendix A.
 ## Appendix C: `COMMAND_*` names in `bundle.js`
 
 Static, 8.2.4133.84. Grouped by the first word after `COMMAND_`. Names ending in `_` are prefixes
-that the bundle tests with `startsWith`, not registered commands.
+that the bundle tests with `startsWith`, not registered commands. 29 of these
+strings are not registered commands (see `registered.txt` in Step 5).
 
 - SHOW (50): `SHOW_ABOUT`, `SHOW_ALL`, `SHOW_BOOKMARK_BAR`, `SHOW_BOOKMARK_PANEL`, `SHOW_BOOKMARKS`, `SHOW_CALENDAR`, `SHOW_CALENDAR_PANEL`, `SHOW_CLEAR_PRIVATE_DATA`, `SHOW_CLOSED_TABS`, `SHOW_COMMUNITY`, `SHOW_CONTACTS_PANEL`, `SHOW_CONTRIBUTE`, `SHOW_DONATE`, `SHOW_DOWNLOADS_PANEL`, `SHOW_DOWNLOADS_POPOUT`, `SHOW_EXTENSIONS`, `SHOW_FEEDS_PANEL`, `SHOW_HELP`, `SHOW_HISTORY`, `SHOW_HISTORY_PANEL`, `SHOW_HOMEPAGE`, `SHOW_KEYBOARDSHORTCUTS`, `SHOW_MAIL`, `SHOW_MAIL_PANEL`, `SHOW_NEXT_PANEL`, `SHOW_NOTES`, `SHOW_NOTES_PANEL`, `SHOW_PAGE_ACCESS_KEYS`, `SHOW_PREVIOUS_PANEL`, `SHOW_PRIVACY_DASHBOARD`, `SHOW_QUICK_COMMANDS`, `SHOW_READING_LIST_PANEL`, `SHOW_SESSION_PANEL`, `SHOW_SETTINGS`, `SHOW_TAB_BUTTON_POPOUT`, `SHOW_TASKS_PANEL`, `SHOW_TRANSLATE_PANEL`, `SHOW_WEB_PANEL_`, `SHOW_WEB_PANEL_1`, `SHOW_WEB_PANEL_2`, `SHOW_WEB_PANEL_3`, `SHOW_WEB_PANEL_4`, `SHOW_WEB_PANEL_5`, `SHOW_WEB_PANEL_6`, `SHOW_WEB_PANEL_7`, `SHOW_WEB_PANEL_8`, `SHOW_WEB_PANEL_9`, `SHOW_WELCOME`, `SHOW_WINDOW_PANEL`, `SHOW_WORKSPACE_MENU`
 - MAIL (38): `MAIL`, `MAIL_ADD_NEW_MAIL_ACCOUNT`, `MAIL_COMPOSE_NEW_MESSAGE`, `MAIL_COMPOSER_CHOOSE_ATTACHMENTS`, `MAIL_COMPOSER_DELETE_DRAFT`, `MAIL_COMPOSER_DOCK`, `MAIL_COMPOSER_UNDOCK`, `MAIL_DELETE_PERMANENTLY`, `MAIL_ENABLE_SENDER_VIEW`, `MAIL_ENABLE_THREADED_VIEW`, `MAIL_FORWARD`, `MAIL_GOTO_NEXT_UNREAD`, `MAIL_GOTO_PREVIOUS_UNREAD`, `MAIL_IS_A_MAILING_LIST`, `MAIL_LABEL_FLAG`, `MAIL_MARK_ALL_READ`, `MAIL_MARK_JUNK`, `MAIL_MARK_NOT_JUNK`, `MAIL_MARK_READ`, `MAIL_MARK_READ_AND_GOTO_NEXT_UNREAD`, `MAIL_MARK_THREAD_READ`, `MAIL_MARK_THREAD_UNREAD`, `MAIL_MARK_UNREAD`, `MAIL_MOVE_TO_ARCHIVE`, `MAIL_NOT_A_MAILING_LIST`, `MAIL_QUEUE_MESSAGE`, `MAIL_REPLY`, `MAIL_REPLY_ALL`, `MAIL_REPLY_LIST`, `MAIL_RESTORE_FROM_ARCHIVE`, `MAIL_SAVE_MESSAGES`, `MAIL_SEND_MESSAGE`, `MAIL_SHOW_HTML`, `MAIL_SHOW_MAIL_INFO`, `MAIL_SHOW_PLAINTEXT`, `MAIL_SHOW_QUICK_REPLY`, `MAIL_SHOW_SETTINGS`, `MAIL_TOGGLE_COMPOSE_FORMAT`
