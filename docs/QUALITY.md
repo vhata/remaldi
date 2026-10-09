@@ -81,15 +81,15 @@ On a red main run, revert with authorization or file a P1 TODO the same day
 main passes; a passing fix branch does not establish recovery. A missing scheduled
 run is not a pass. GitHub schedules are best-effort and can become inactive.
 
-Protection inspection on 2026-10-04 returned HTTP 403: this private repository's
-plan does not expose branch protection. No hosting settings were changed, and
-these gates do not imply enforced merge restrictions. Recommended user-applied
-settings when available: required `check (ubuntu-latest)` and
-`check (macos-latest)` checks on current base; linear history, resolved
-conversations, blocked force pushes/deletions, administrator enforcement, squash
-only, PR title/body as squash message, delete merged head branches. Zero required
-forge approvals is compatible with recorded independent agent review; the user
-still owns final review. Scheduled validation is not a required PR check.
+The repository became public on 2026-10-07 and branch protection was applied the
+same day: a pull request is required with zero approving reviews (independent
+agent review is recorded in `## Review`); required checks `check (ubuntu-latest)`
+and `check (macos-latest)`; branches need not be up to date with `main` before
+merging; linear history required; conversation resolution not required; force
+pushes and deletions on `main` allowed for the owner (agents never use them); not
+enforced for administrators, which permits the direct-to-main exceptions in
+[AGENTS.md](../AGENTS.md). Squash only, PR title and body as the squash message,
+merged head branches deleted. Scheduled validation is not a required PR check.
 
 After an authorized squash merge, run
 `bash scripts/workflow/cleanup-landed.sh` first in dry-run mode, inspect dirty or

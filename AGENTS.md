@@ -35,7 +35,14 @@ Python setup and executable quality gates live in [docs/QUALITY.md](docs/QUALITY
 - PR bodies open with `## Why` and record scope, markers, validation, and
   `## Review` naming reviewer, exact reviewed revision, findings and dispositions.
   If GitHub is unavailable, save `.feral/pr-<slug>.md` and disclose a local claim.
-- No direct-to-main exceptions. Rebase rather than merge main into task branches.
+- Two things go straight to `main` without a branch or PR: documentation that
+  records work to be done (adding or triaging `TODO.md` entries, and plans; a plan
+  is planning for work, not work, and everything it describes still goes through
+  branches, PRs and review), and housekeeping metadata files such as
+  `.git-blame-ignore-revs`, only when the user says so for that case. Extrapolate
+  with common sense and say so in the commit; everything else, including all code
+  and documentation that describes behaviour, goes through a PR. Rebase rather
+  than merge main into task branches.
   The user lands by squash; retain the PR title/body as the lasting explanation.
   Never merge, release, tag, deploy or change hosting settings without delegation.
 - Interactive branch pushes and draft PRs are normal task work. Unattended runs
