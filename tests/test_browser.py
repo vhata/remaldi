@@ -176,3 +176,9 @@ class BrowserTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("[viv?.tabsPrivate, ['onExtDataChanged'], notify]", expression)
         self.assertIn("path => { if (path === 'vivaldi.workspaces.list') notify(); }", expression)
         self.assertNotIn("vivaldi.workspaces,", expression)
+        recorded = expression.index("hooks.installed.push([event, listener]);")
+        self.assertLess(expression.index("globalThis[key] = hooks;"), recorded)
+        self.assertLess(
+            recorded,
+            expression.index("try { event.addListener(listener); hooks.added += 1; } catch {}"),
+        )
