@@ -11,20 +11,41 @@ from .transport import CDPConnection
 UI_SUFFIX = "mpognobbkildjkofajifpdfhcoklimli/main.html"
 EVENT_SETUP_TIMEOUT = 2
 
+# Hooks survive in the UI document across service restarts, so a changed hook set bumps
+# the version and replaces listeners installed by an earlier one.
+# The vivaldi.prefs.onChanged argument shape has not been observed. The filter accepts a
+# path string, or an object (or array of objects) with a string path or key, and
+# invalidates on any shape it does not recognise.
 EVENT_HOOKS = """(() => {
  const key = '__remaldiEventHooks';
- if (globalThis[key]) return globalThis[key].length;
+ const version = 2;
+ const previous = globalThis[key];
+ if (previous?.version === version) return previous.installed.length;
+ for (const [event, listener] of (Array.isArray(previous) ? previous : previous?.installed ?? [])) {
+   try { event.removeListener(listener); } catch {}
+ }
  const notify = () => { if (typeof globalThis.__remaldiChanged === 'function') globalThis.__remaldiChanged('dirty'); };
+ const workspacesPath = 'vivaldi.workspaces.list';
+ const prefPath = item => typeof item === 'string' ? item
+   : typeof item?.path === 'string' ? item.path
+   : typeof item?.key === 'string' ? item.key : null;
+ const related = path => path === workspacesPath || path.startsWith(workspacesPath + '.') || workspacesPath.startsWith(path + '.');
+ const prefChanged = change => {
+   const paths = (Array.isArray(change) ? change : [change]).map(prefPath);
+   if (paths.length === 0 || paths.includes(null) || paths.some(related)) notify();
+ };
+ const viv = typeof vivaldi === 'undefined' ? null : vivaldi;
  const installed = [];
  const groups = [
-   [chrome.tabs, ['onCreated','onRemoved','onUpdated','onMoved','onActivated','onAttached','onDetached']],
-   [chrome.windows, ['onCreated','onRemoved','onFocusChanged']],
-   [typeof vivaldi === 'undefined' ? null : vivaldi.workspaces, ['onCreated','onRemoved','onChanged','onActivated']]
+   [chrome.tabs, ['onCreated','onRemoved','onUpdated','onMoved','onActivated','onAttached','onDetached'], notify],
+   [chrome.windows, ['onCreated','onRemoved','onFocusChanged'], notify],
+   [viv?.prefs, ['onChanged'], prefChanged],
+   [viv?.tabsPrivate, ['onExtDataChanged'], notify]
  ];
- for (const [api, names] of groups) for (const name of names) {
-   if (typeof api?.[name]?.addListener === 'function') { api[name].addListener(notify); installed.push([api[name], notify]); }
+ for (const [api, names, listener] of groups) for (const name of names) {
+   if (typeof api?.[name]?.addListener === 'function') { api[name].addListener(listener); installed.push([api[name], listener]); }
  }
- globalThis[key] = installed;
+ globalThis[key] = {version, installed};
  return installed.length;
 })()"""
 
