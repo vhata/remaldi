@@ -31,7 +31,10 @@ errors go to stderr and return a nonzero exit status.
 
 `workspace switch` takes a Vivaldi internal workspace ID, a nonnegative decimal
 number, not a list position. The IDs are the `id` fields of Vivaldi's
-`vivaldi.workspaces.list` preference; this prints them without names:
+`vivaldi.workspaces.list` preference. `state` lists them with their names in
+`workspaces`; this prints the IDs alone, without names, and also works when
+`state` reports `workspaces: null` because some entries fail its checks (for
+example duplicate IDs or a name that is not text):
 
 ```bash
 remaldi evaluate "new Promise(r => vivaldi.prefs.get('vivaldi.workspaces.list', p => r(p.value.map(w => w.id))))" --await-promise --return-by-value
