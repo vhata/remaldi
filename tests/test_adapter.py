@@ -129,13 +129,26 @@ class AdapterTests(unittest.IsolatedAsyncioTestCase):
                 self.assertEqual(controller.request.await_count, 3)
 
     async def test_unexpected_switch_result_is_not_success(self):
-        for value in [None, {}, {"dispatched": False}, {"rejected": "other"}, [True]]:
+        values = [
+            None,
+            {},
+            {"dispatched": False},
+            {"dispatched": 1},
+            {"dispatched": 1.0},
+            {"rejected": "other"},
+            {"rejected": ["unknown_workspace"]},
+            {"rejected": {"code": "unknown_workspace"}},
+            [True],
+        ]
+        for value in values:
             with self.subTest(value=value):
                 adapter, controller = self.switch_adapter(value)
                 with self.assertRaises(ControlError) as caught:
                     await adapter.switch_workspace(2)
                 self.assertEqual(caught.exception.code, "unsupported_result")
                 self.assertEqual(controller.request.await_count, 2)
+                await adapter.snapshot()
+                self.assertEqual(controller.request.await_count, 3)
 
     async def test_unsupported_switch_has_no_mutation(self):
         adapter, controller, _ = self.adapter({"workspace_switch": False})

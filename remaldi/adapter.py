@@ -177,10 +177,11 @@ class VivaldiAdapter:
                 result = await self.evaluate(expression)
             finally:
                 self.invalidate()
-            if result == {"dispatched": True}:
-                return result
+            if isinstance(result, dict) and result.keys() == {"dispatched"}:
+                if result["dispatched"] is True:
+                    return result
             rejection = result.get("rejected") if isinstance(result, dict) else None
-            if rejection in SWITCH_REJECTIONS:
+            if isinstance(rejection, str) and rejection in SWITCH_REJECTIONS:
                 code, message = SWITCH_REJECTIONS[rejection]
                 raise ControlError(code, message, workspace_id=parameter, window_id=window_id)
             raise ControlError("unsupported_result", "Unexpected workspace switch result.")
