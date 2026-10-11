@@ -497,12 +497,15 @@ have to reapply them after each reconnection (Unverified).
 
 ### Events
 
-Remaldi currently listens to `chrome.tabs` and `chrome.windows` events. Other
-listenable sources include `vivaldi.prefs.onChanged`,
-`vivaldi.tabsPrivate.onExtDataChanged`/`onKeyboardShortcut`/`onMouseGesture`/
+Remaldi currently listens to `chrome.tabs` and `chrome.windows` events,
+`vivaldi.prefs.onChanged` (filtered to `vivaldi.workspaces.list`) and
+`vivaldi.tabsPrivate.onExtDataChanged`. The `onChanged` argument shape is
+Unverified, so the filter invalidates on any shape it does not recognise. Other
+listenable sources include `vivaldi.tabsPrivate.onKeyboardShortcut`/`onMouseGesture`/
 `onMediaStateChanged`, `vivaldi.windowPrivate.onStateChanged`,
 `vivaldi.sessionsPrivate.onChanged`, `chrome.downloads.onChanged`, and
-DevTools `Target.*` events. None of these were observed firing during the probe.
+DevTools `Target.*` events. None of the Vivaldi or DevTools sources named here
+were observed firing during the probe.
 
 ## What not to wrap
 
