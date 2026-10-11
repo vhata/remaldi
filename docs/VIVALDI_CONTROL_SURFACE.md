@@ -510,13 +510,18 @@ where `path` is the full dotted preference name (Static, read from 8.2.4133.84).
 ```bash
 plutil -extract CFBundleShortVersionString raw /Applications/Vivaldi.app/Contents/Info.plist
 grep -oE '<script[^>]*>' "$VIVALDI_RES/main.html"
-grep -c 'prefs.onChanged' "$VIVALDI_RES"/*.js
+for f in "$VIVALDI_RES"/*.js; do printf '%s ' "${f##*/}"; grep -o 'prefs\.onChanged' "$f" | wc -l; done
 grep -oE '_attachListeners\(\)\{[^}]{0,80}\}' "$VIVALDI_RES/background-common-bundle.js"
 grep -oE '_prefsListener\(e,t\)\{[^}]*\}' "$VIVALDI_RES/background-common-bundle.js"
 grep -oE '_updatePref\(e,t,n\)\{.{0,60}' "$VIVALDI_RES/background-common-bundle.js"
 grep -oE 'loadPromise=async\(\)=>\{this\._attachListeners\(\).{0,240}' "$VIVALDI_RES/background-common-bundle.js"
 grep -oE 'kWorkspacesList:\(\)=>[A-Za-z]+|[A-Za-z]+="vivaldi\.workspaces\.list"' "$VIVALDI_RES/background-common-bundle.js"
 ```
+
+The bundles are minified onto very few lines, so count matches with `grep -o`
+rather than `grep -c`, which counts lines. On 8.2 the loop prints 1 for
+`background-common-bundle.js` and `feed-bundle.js` and 0 for every other bundle,
+including `bundle.js`. The remaining commands return:
 
 ```js
 _attachListeners(){i.Z.prefs.onChanged.addListener(((e,t)=>this._prefsListener(e,t)))}
