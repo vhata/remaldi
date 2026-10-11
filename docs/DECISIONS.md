@@ -5,7 +5,10 @@
 The generic workflow (contract, queue and review guides, validators) is vendored
 under `docket/` by the docket skill's `install.sh` and is never edited here. It
 replaces the scripts copied into `scripts/workflow/` and the guides rewritten
-under `docs/`, which had drifted from the skill and received none of its fixes.
+under `docs/`, which had drifted from the skill and received none of its fixes,
+and supersedes the 2026-10-04 choice below to copy the shell tools into the
+repository (its reason still holds: the installed copies run without a globally
+installed skill).
 `AGENTS.md` keeps only this project's settings in its marked Docket section, and
 the review focus areas, baseline commands and drift checks live in
 `docs/QUALITY.md`. One command installs or resyncs the whole directory and
