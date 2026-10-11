@@ -34,22 +34,108 @@ class AdapterTests(unittest.IsolatedAsyncioTestCase):
         await adapter.snapshot()
         self.assertEqual(controller.request.await_count, 4)
 
-    async def test_switch_dispatches_once_and_invalidates_snapshot(self):
+    def switch_adapter(self, result):
         adapter, controller, state = self.adapter()
         controller.request.side_effect = [
             {"result": {"value": state}},
-            {"result": {"value": {"dispatched": True}}},
+            {"result": {"value": result}},
             {"result": {"value": state}},
         ]
-        self.assertEqual(await adapter.switch_workspace(2), {"dispatched": True})
-        expressions = [call.args[1]["expression"] for call in controller.request.await_args_list]
+        return adapter, controller
+
+    def evaluated(self, controller):
+        return [call.args[1]["expression"] for call in controller.request.await_args_list]
+
+    async def test_switch_dispatches_local_workspace_action_once_and_invalidates_snapshot(self):
+        adapter, controller = self.switch_adapter({"dispatched": True})
+        self.assertEqual(await adapter.switch_workspace("1712345678901"), {"dispatched": True})
         dispatches = [
-            expression for expression in expressions if "COMMAND_WORKSPACE_SWITCH_2" in expression
+            expression
+            for expression in self.evaluated(controller)
+            if "JS_LOCAL_ACTIVATE_WORKSPACE" in expression
         ]
         self.assertEqual(len(dispatches), 1)
-        self.assertIn("dispatch(7,", dispatches[0])
+        expression = dispatches[0]
+        self.assertIn('const workspaceId = "1712345678901";', expression)
+        self.assertIn("const windowId = 7;", expression)
+        self.assertIn(
+            "vivaldi.menubar.onActivated.dispatch(windowId, 'JS_LOCAL_ACTIVATE_WORKSPACE', workspaceId)",
+            expression,
+        )
+        self.assertNotIn("COMMAND_WORKSPACE_SWITCH_", expression)
         await adapter.snapshot()
         self.assertEqual(controller.request.await_count, 3)
+
+    async def test_switch_parameter_is_canonical_decimal_id(self):
+        for value, parameter in [(2, "2"), ("0002", "2"), ("0", "0"), (2**53 - 1, str(2**53 - 1))]:
+            with self.subTest(value=value):
+                adapter, controller = self.switch_adapter({"dispatched": True})
+                await adapter.switch_workspace(value)
+                self.assertIn(f'const workspaceId = "{parameter}";', self.evaluated(controller)[1])
+
+    async def test_switch_uses_explicit_window(self):
+        adapter, controller, state = self.adapter()
+        state["windows"] = [{"id": 7, "focused": True}, {"id": 9, "focused": False}]
+        controller.request.side_effect = [
+            {"result": {"value": state}},
+            {"result": {"value": {"dispatched": True}}},
+        ]
+        await adapter.switch_workspace(2, window_id=9)
+        self.assertIn("const windowId = 9;", self.evaluated(controller)[1])
+
+    async def test_switch_checks_preference_and_window_before_dispatch(self):
+        adapter, controller = self.switch_adapter({"dispatched": True})
+        await adapter.switch_workspace(2)
+        expression = self.evaluated(controller)[1]
+        dispatch = expression.index("vivaldi.menubar.onActivated.dispatch(")
+        self.assertEqual(expression.count(".dispatch("), 1)
+        checks = [
+            "vivaldi.prefs.get('vivaldi.workspaces.list',",
+            "String(entry.id) === workspaceId",
+            "chrome.windows.get(windowId,",
+            "selected.state === 'minimized'",
+        ]
+        for check in checks:
+            with self.subTest(check=check):
+                self.assertLess(expression.index(check), dispatch)
+        rejections = [
+            "rejected: 'workspaces_unavailable'",
+            "rejected: 'unknown_workspace'",
+            "rejected: 'window_unavailable'",
+            "rejected: 'minimized_window'",
+        ]
+        for rejection in rejections:
+            with self.subTest(rejection=rejection):
+                self.assertEqual(expression.count(rejection), 1)
+                self.assertLess(expression.index(rejection), dispatch)
+        self.assertGreater(expression.index("return { dispatched: true }"), dispatch)
+
+    async def test_browser_rejections_are_structured_errors_without_replay(self):
+        cases = {
+            "unknown_workspace": "unknown_workspace",
+            "minimized_window": "minimized_window",
+            "workspaces_unavailable": "workspaces_unavailable",
+            "window_unavailable": "invalid_parameters",
+        }
+        for rejection, code in cases.items():
+            with self.subTest(rejection=rejection):
+                adapter, controller = self.switch_adapter({"rejected": rejection})
+                with self.assertRaises(ControlError) as caught:
+                    await adapter.switch_workspace(2)
+                self.assertEqual(caught.exception.code, code)
+                self.assertEqual(caught.exception.details, {"workspace_id": "2", "window_id": 7})
+                self.assertEqual(controller.request.await_count, 2)
+                await adapter.snapshot()
+                self.assertEqual(controller.request.await_count, 3)
+
+    async def test_unexpected_switch_result_is_not_success(self):
+        for value in [None, {}, {"dispatched": False}, {"rejected": "other"}, [True]]:
+            with self.subTest(value=value):
+                adapter, controller = self.switch_adapter(value)
+                with self.assertRaises(ControlError) as caught:
+                    await adapter.switch_workspace(2)
+                self.assertEqual(caught.exception.code, "unsupported_result")
+                self.assertEqual(controller.request.await_count, 2)
 
     async def test_unsupported_switch_has_no_mutation(self):
         adapter, controller, _ = self.adapter({"workspace_switch": False})
@@ -60,7 +146,18 @@ class AdapterTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_invalid_workspace_is_rejected_before_browser_call(self):
         adapter, controller, _ = self.adapter()
-        for value in [True, -1, "2; dangerous()", None]:
+        for value in [
+            True,
+            -1,
+            "2; dangerous()",
+            None,
+            "",
+            "\u00b2",
+            "\u0661\u0662",
+            2**53,
+            str(2**53),
+            2.0,
+        ]:
             with self.subTest(value=value), self.assertRaises(ControlError) as caught:
                 await adapter.switch_workspace(value)
             self.assertEqual(caught.exception.code, "invalid_parameters")
