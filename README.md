@@ -57,12 +57,21 @@ cannot fix this by reconnecting. The daemon remains alive while unavailable.
 
 ## State and extension points
 
-`state` returns windows, their tabs, workspaces where supported, and capabilities.
-Snapshots expire after five seconds; `state --refresh` forces recollection.
-Supported tab, window, and workspace events invalidate snapshots. Reconnection
-also invalidates them. Vivaldi UI APIs are internal and version dependent;
-unsupported workspace listing is reported with `workspaces: null` and a false
-capability. Other evaluation failures are explicit errors.
+`state` returns windows, their tabs, workspaces, and capabilities. Workspaces are
+read from Vivaldi's `vivaldi.workspaces.list` preference and listed as `{id, name,
+emoji}` (`emoji` is null when unset). Each tab has a `workspace_id` taken from its
+`vivExtData`, or null for tabs in no workspace, web-panel tabs and unreadable tab
+data. When the preference is unavailable or has an unexpected shape, the snapshot
+reports `workspaces: null` and a false `workspaces` capability instead of failing.
+This source was found by a read-only probe of Vivaldi 8.2; Remaldi's reading of it
+has not yet been checked against a live browser.
+
+Snapshots expire after five seconds; `state --refresh` forces recollection. Tab
+and window events, changes to the workspace preference, and tab data changes
+invalidate snapshots where Vivaldi delivers them; the preference and tab data
+events have not been observed firing, so the expiry still bounds staleness.
+Reconnection also invalidates snapshots. Vivaldi UI APIs are internal and version
+dependent; other evaluation failures are explicit errors.
 
 `raw METHOD --params '{...}' --target TARGET_ID` sends any DevTools request to an
 explicit discovered target. Without `--target`, it uses the Vivaldi UI target.

@@ -11,7 +11,6 @@ before calling ready work available. Priorities were set in triage on 2026-10-11
 - [ACCEPTANCE] `verify-live-workspace-switch` — **Validate visible switching and service reuse in a running Vivaldi browser.** Current success confirms dispatch.
   - Source: accepted plan and remaining live acceptance, 2026-10-02.
   - Starting point: workspace CLI and live scenario in docs/QUALITY.md.
-  - Related: `implement-workspace-enumeration`
   - Blocked by: an already-running debug-enabled Vivaldi, known workspace IDs,
     and explicit authorization for the selected visible change.
   - Acceptance: observe the selected workspace, confirm the same service PID on
@@ -78,7 +77,6 @@ before calling ready work available. Priorities were set in triage on 2026-10-11
   - Starting point: the `WORKSPACE_MOVE_TABS_TO_` registry entries and their store
     actions in `bundle.js`; `vivaldi.tabsPrivate.update`.
   - Dependencies: none.
-  - Related: `implement-workspace-enumeration`
   - Experiment: find the store call the move command uses and whether writing
     `vivExtData.workspaceId` alone updates the UI. Confirm with one authorized
     live move of a disposable tab.
@@ -132,7 +130,6 @@ before calling ready work available. Priorities were set in triage on 2026-10-11
     [docs/VIVALDI_CONTROL_SURFACE.md](docs/VIVALDI_CONTROL_SURFACE.md) ("Events").
   - Starting point: `EVENT_HOOKS` and `__remaldiChanged` in `browser.py`; protocol version 1 in `protocol.py`.
   - Dependencies: none.
-  - Related: `implement-workspace-enumeration`
   - Experiment: establish whether this could ever be useful before designing it.
     Read-only, observe which candidate sources actually fire and what they carry
     (shapes and rates only, no URLs or titles recorded), and name at least one
@@ -143,33 +140,6 @@ before calling ready work available. Priorities were set in triage on 2026-10-11
     (events carry URLs and titles).
 
 ## Ready for separate work
-
-### P1 High
-
-- [STATE] `implement-workspace-enumeration` — **Report workspaces from Vivaldi's workspace preference.** Vivaldi 8.2 has
-  no `vivaldi.workspaces` API, so snapshots always report workspaces unsupported.
-  - Source: `discover-workspace-enumeration` read-only live probe, 2026-10-08,
-    Vivaldi 8.2.4133.84.
-  - Starting point: `SNAPSHOT` in `adapter.py` and `EVENT_HOOKS` in `browser.py`.
-  - Dependencies: none.
-  - Contract: `vivaldi.prefs.get('vivaldi.workspaces.list', callback)` yields
-    `{value, defaultValue, store}`. `value` lists `{id, name, icon, emoji?}` with
-    unique nonnegative safe-integer IDs in the decimal form `switch_workspace`
-    accepts; switching to them is unverified. An unknown path sets
-    `chrome.runtime.lastError` rather than throwing.
-  - Output: `workspaces` becomes a list of `{id, name, emoji}` (`emoji` null when
-    absent; `icon` is inline SVG and is omitted) and the capability is true. Each
-    tab gains `workspace_id`, the numeric `workspaceId` from its `vivExtData` JSON,
-    or null. Tabs in no workspace and web-panel tabs (`panelId`) both have null.
-    A missing `prefs.get`, `lastError`, or malformed value keeps `workspaces: null`
-    with capability false instead of failing the snapshot.
-  - Events: replace the absent `vivaldi.workspaces` hooks in `EVENT_HOOKS` with
-    `vivaldi.prefs.onChanged`, limited to this path once its argument shape is
-    checked, and `vivaldi.tabsPrivate.onExtDataChanged`. Neither was observed
-    firing; keep the TTL fallback.
-  - Acceptance: tests cover the supported shape, tab membership, malformed values,
-    `lastError`, and fallback; a read-only live check reports the capability and
-    IDs without committing names. A window's active workspace is out of scope.
 
 ### P2 Normal
 
