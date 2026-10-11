@@ -28,7 +28,7 @@ jobs:
       - run: python -m build
       - name: Report review drift
         shell: bash
-        run: bash scripts/workflow/review-due.sh --paths "remaldi tests" | tee review-due.txt
+        run: bash docket/scripts/review-due.sh --paths "remaldi tests" | tee review-due.txt
       - uses: actions/upload-artifact@v4
         if: always()
         with:

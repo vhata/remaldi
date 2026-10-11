@@ -8,8 +8,8 @@
 # head; review-finding resolutions carry a Validation section.
 #
 # Usage:
-#   check-pr-markers.sh --body FILE [--base REF] [--head REF] [--todo PATH] [--backlog PATH]
-#   check-pr-markers.sh --pr NUMBER [--base REF] [--head REF]
+#   docket/scripts/check-pr-markers.sh --body FILE [--base REF] [--head REF] [--todo PATH] [--backlog PATH]
+#   docket/scripts/check-pr-markers.sh --pr NUMBER [--base REF] [--head REF]
 #
 # Defaults: --base origin/main (local main when there is no origin), --head HEAD,
 # TODO.md, review/BACKLOG.md. --branch NAME (default: the head's branch) enables
@@ -18,7 +18,8 @@
 # or pass refs explicitly. In CI on a pull_request event use --base
 # "origin/$GITHUB_BASE_REF" and --head HEAD (the merge commit).
 #
-# Marker vocabulary (one per line, no backticks, no trailing punctuation):
+# Marker vocabulary (one per line, at the start of the line rather than in a
+# list or quote; no backticks, no trailing punctuation):
 #   Claims TODO: <slug>                    Resolves TODO: <slug>
 #   Partially resolves TODO: <slug>        Remaining TODO: <slug>
 #   Files TODO: <slug>                     (a discovery captured by this PR)
@@ -46,7 +47,7 @@ while [ $# -gt 0 ]; do
     --todo) todo="$2"; shift 2 ;;
     --backlog) backlog="$2"; shift 2 ;;
     --branch) branch="$2"; shift 2 ;;
-    -h|--help) sed -n '2,31p' "$0"; exit 0 ;;
+    -h|--help) sed -n '2,32p' "$0"; exit 0 ;;
     *) echo "check-pr-markers: unknown argument $1" >&2; exit 2 ;;
   esac
 done
@@ -57,6 +58,12 @@ trap 'rm -rf "$tmp"' EXIT
 if [ "$base" = "origin/main" ] && ! git rev-parse --verify --quiet origin/main >/dev/null; then
   if git rev-parse --verify --quiet main >/dev/null; then base="main"; echo "note: no origin/main; comparing against local main"; fi
 fi
+# An unknown ref would make every snapshot empty and every Resolves marker
+# fail with a misleading "was not in TODO.md" message; refuse it up front.
+for ref in "$base" "$head"; do
+  git rev-parse --verify --quiet "$ref^{commit}" >/dev/null \
+    || { echo "check-pr-markers: ref $ref not found (pass --base/--head, or fetch the branch)" >&2; exit 2; }
+done
 
 if [ -n "$pr" ]; then
   gh pr view "$pr" --json body -q .body > "$tmp/body.md"
@@ -84,21 +91,49 @@ entry_block() {
     inblock { print }' "$1"
 }
 
-# Strip HTML comments (template hints) before checking structure.
-sed -e 's/<!--.*-->//g' "$body" > "$tmp/body.clean"
+# Strip Windows line endings (bodies edited on the web) and HTML comments
+# (template hints, which may span several lines) before checking structure.
+# A line that lies entirely inside a comment becomes an empty line, so line
+# numbers are preserved.
+tr -d '\r' < "$body" | awk '
+  {
+    line = $0; out = ""
+    while (1) {
+      if (incomment) {
+        p = index(line, "-->")
+        if (p == 0) { line = ""; break }
+        line = substr(line, p + 3); incomment = 0
+      } else {
+        p = index(line, "<!--")
+        if (p == 0) { out = out line; break }
+        out = out substr(line, 1, p - 1); line = substr(line, p + 4); incomment = 1
+      }
+    }
+    print out
+  }' > "$tmp/body.clean"
 
 first_heading="$(grep -m1 -E '^## ' "$tmp/body.clean" || true)"
 if [ -z "$first_heading" ]; then
-  err "description must open with a ## Why heading"
+  err "description has no \"## \" headings; the convention is \"## Why\" first, then changes, markers and validation"
 elif ! echo "$first_heading" | grep -Eq '^## Why\b'; then
   err "first heading is \"$first_heading\"; the description must open with \"## Why\""
 fi
 
 # Exact markers.
 grep -E '^(Claims|Resolves|Partially resolves|Remaining|Files) (TODO|review backlog|review finding|roadmap): [a-z0-9][a-z0-9-]*$' "$tmp/body.clean" > "$tmp/markers" || true
+# Markers written as list items, task-list items, numbered items or quotes
+# ("- Resolves TODO: x", "- [ ] ...", "1. ...", "> ..."): rejected, not ignored,
+# so the PR cannot silently lose its claim. The colon after the namespace keeps
+# prose list items ("- Files TODO entries later") out of this rule.
+listed_re='^[[:space:]]*(([-+*]|[0-9]+[.)])[[:space:]]+(\[[ xX]\][[:space:]]+)?|>[[:space:]]*)+[*_`]*(claims|resolves|partially resolves|remaining|files)[*_` ]+(todo|review backlog|review finding|roadmap)[*_` ]*:'
+grep -Ei "$listed_re" "$tmp/body.clean" > "$tmp/listed" || true
+while IFS= read -r line; do
+  [ -n "$line" ] && err "marker \"$line\" is written as a list item or quote; markers start the line with no bullet, number or \">\" (exact form: \"Resolves TODO: my-slug\")"
+done < "$tmp/listed"
 # Near misses: looks like a marker but is not exact (backticks, bold, case, punctuation, several slugs).
-grep -Ei '^[*_ ]*(claims|resolves|partially resolves|remaining|files)[*_ ]*(todo|review backlog|review finding|roadmap)' "$tmp/body.clean" \
-  | grep -Ev '^(Claims|Resolves|Partially resolves|Remaining|Files) (TODO|review backlog|review finding|roadmap): [a-z0-9][a-z0-9-]*$' > "$tmp/nearmiss" || true
+grep -Ei '^[*_` ]*(claims|resolves|partially resolves|remaining|files)[*_` ]*(todo|review backlog|review finding|roadmap)' "$tmp/body.clean" \
+  | grep -Ev '^(Claims|Resolves|Partially resolves|Remaining|Files) (TODO|review backlog|review finding|roadmap): [a-z0-9][a-z0-9-]*$' \
+  | { grep -Eiv "$listed_re" || true; } > "$tmp/nearmiss" || true
 while IFS= read -r line; do
   [ -n "$line" ] && err "malformed marker \"$line\" (exact form: \"Resolves TODO: my-slug\"; one slug per line, nothing after the slug, no backticks or bold; put explanations in the prose above)"
 done < "$tmp/nearmiss"
@@ -116,7 +151,10 @@ fi
 has_validation=0
 if awk '/^## Validation/{v=1; next} v && /^## /{v=0} v && NF{found=1} END{exit !found}' "$tmp/body.clean"; then has_validation=1; fi
 
-claimed_backlog=""
+# Backlog entries this PR claims or resolves, gathered up front so the finding
+# markers can be checked regardless of the order the markers appear in.
+claimed_backlog="$({ grep -oE '^(Claims|Resolves|Partially resolves) review backlog: [a-z0-9-]+' "$tmp/markers" || true; } | sed 's/.*: //' | tr '\n' ' ')"
+claimed_backlog="${claimed_backlog% }"
 while IFS= read -r line; do
   verb="${line%%:*}"; slug="${line##*: }"
   case "$verb" in
@@ -134,7 +172,7 @@ while IFS= read -r line; do
       grep -q '^Remaining TODO: ' "$tmp/markers" || err "Partially resolves TODO: $slug has no matching \"Remaining TODO: <new-slug>\" line" ;;
     "Remaining TODO")
       if has_entry "$tmp/todo.head" "$slug"; then
-        orig="$(entry_block "$tmp/todo.head" "$slug" | grep -oE 'Remaining from: `[a-z0-9-]+`' | head -1 | sed 's/.*`\([a-z0-9-]*\)`/\1/')"
+        orig="$(entry_block "$tmp/todo.head" "$slug" | { grep -oE 'Remaining from: `[a-z0-9-]+`' || true; } | head -1 | sed 's/.*`\([a-z0-9-]*\)`/\1/')"
         if [ -z "$orig" ]; then err "remainder \`$slug\` has no \"Remaining from: \`<original>\`\" line"
         elif ! grep -qx "Partially resolves TODO: $orig" "$tmp/markers"; then err "remainder \`$slug\` says Remaining from \`$orig\`, but there is no \"Partially resolves TODO: $orig\" marker"; fi
       else
@@ -142,20 +180,17 @@ while IFS= read -r line; do
       fi
       has_entry "$tmp/todo.base" "$slug" && err "Remaining TODO: $slug already existed at $base; a remainder needs a new slug" ;;
     "Claims review backlog")
-      claimed_backlog="$claimed_backlog $slug"
       has_entry "$tmp/backlog.head" "$slug" || err "Claims review backlog: $slug, but the entry is not in $backlog at $head" ;;
     "Resolves review backlog")
-      claimed_backlog="$claimed_backlog $slug"
       has_entry "$tmp/backlog.base" "$slug" || err "Resolves review backlog: $slug, but the entry was not in $backlog at $base"
       has_entry "$tmp/backlog.head" "$slug" && err "Resolves review backlog: $slug, but the entry is still in $backlog at $head" ;;
     "Partially resolves review backlog")
-      claimed_backlog="$claimed_backlog $slug"
       has_entry "$tmp/backlog.base" "$slug" || err "Partially resolves review backlog: $slug, but the entry was not in $backlog at $base"
       has_entry "$tmp/backlog.head" "$slug" && err "Partially resolves review backlog: $slug, but the original is still in $backlog at $head"
       grep -q '^Remaining review backlog: ' "$tmp/markers" || err "Partially resolves review backlog: $slug has no matching \"Remaining review backlog: <new-slug>\"" ;;
     "Remaining review backlog")
       if has_entry "$tmp/backlog.head" "$slug"; then
-        orig="$(entry_block "$tmp/backlog.head" "$slug" | grep -oE 'Remaining from: `[a-z0-9-]+`' | head -1 | sed 's/.*`\([a-z0-9-]*\)`/\1/')"
+        orig="$(entry_block "$tmp/backlog.head" "$slug" | { grep -oE 'Remaining from: `[a-z0-9-]+`' || true; } | head -1 | sed 's/.*`\([a-z0-9-]*\)`/\1/')"
         if [ -z "$orig" ]; then err "remainder \`$slug\` has no \"Remaining from: \`<original>\`\" line"
         elif ! grep -qx "Partially resolves review backlog: $orig" "$tmp/markers"; then err "remainder \`$slug\` says Remaining from \`$orig\`, but there is no \"Partially resolves review backlog: $orig\" marker"; fi
       else
@@ -164,9 +199,11 @@ while IFS= read -r line; do
       has_entry "$tmp/backlog.base" "$slug" && err "Remaining review backlog: $slug already existed at $base; a remainder needs a new slug" ;;
     "Claims review finding"|"Resolves review finding")
       if [ -n "$claimed_backlog" ]; then
+        # A claimed entry lives at head; a resolved one lived at base. An entry
+        # filed and claimed in the same PR exists only at head, so look in both.
         found=0
         for b in $claimed_backlog; do
-          entry_block "$tmp/backlog.base" "$b" | grep -q "\`$slug\`" && found=1
+          { entry_block "$tmp/backlog.base" "$b"; entry_block "$tmp/backlog.head" "$b"; } | grep -q "\`$slug\`" && found=1
         done
         [ "$found" -eq 1 ] || warn "$verb: $slug is not listed in the Findings of the claimed backlog entries ($claimed_backlog)"
       else
@@ -195,7 +232,13 @@ if [ -f "$tmp/late-errors" ]; then cat "$tmp/late-errors"; errors=$((errors + $(
 case "$branch" in
   todo/*|review/*|roadmap/*)
     bslug="${branch#*/}"
-    grep -qE "^(Claims|Resolves|Partially resolves) (TODO|review backlog|review finding|roadmap): $bslug$" "$tmp/markers" \
+    # The prefix names the queue, so a marker for another queue does not count.
+    case "$branch" in
+      todo/*) namespace="TODO" ;;
+      review/*) namespace="review backlog" ;;
+      roadmap/*) namespace="roadmap" ;;
+    esac
+    grep -qE "^(Claims|Resolves|Partially resolves) $namespace: $bslug$" "$tmp/markers" \
       || err "branch $branch names queued work but no marker claims or resolves \`$bslug\`" ;;
 esac
 

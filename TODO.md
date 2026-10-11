@@ -1,6 +1,6 @@
 # Ordinary deferred work
 
-Use [the TODO guide](docs/TODO_GUIDE.md) before selecting or moving an entry.
+Use [the TODO guide](docket/TODO_GUIDE.md) before selecting or moving an entry.
 These are known follow-ups, not assignments. Check open PR claims and dependencies
 before calling ready work available. Priorities below are intentionally unassigned.
 

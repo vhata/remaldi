@@ -98,7 +98,7 @@ gates, and live acceptance boundaries. Start agent work with [AGENTS.md](AGENTS.
 | --- | --- |
 | What is promised or still unverified? | [SPEC.md](SPEC.md) |
 | What contracts must changes preserve? | [ARCHITECTURE.md](ARCHITECTURE.md) |
-| What could be worked on next? | [TODO.md](TODO.md), with [selection rules](docs/TODO_GUIDE.md) |
+| What could be worked on next? | [TODO.md](TODO.md), with [selection rules](docket/TODO_GUIDE.md) |
 | What is currently claimed? | Open GitHub PRs and their ownership/claim markers; check branches/worktrees too. |
 | What has a codebase review found? | [Review history](review/README.md) and [promoted backlog](review/BACKLOG.md) |
 
