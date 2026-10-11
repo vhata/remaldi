@@ -118,7 +118,8 @@ def _workspaces(reading: object) -> list[JsonObject] | None:
         ):
             return None
         seen.add(identifier)
-        workspaces.append({"id": identifier, "name": name, "emoji": emoji})
+        # An empty emoji means none, so clients see a single "no emoji" value.
+        workspaces.append({"id": identifier, "name": name, "emoji": emoji or None})
     return workspaces
 
 

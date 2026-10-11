@@ -251,7 +251,9 @@ class WorkspaceSnapshotTests(unittest.IsolatedAsyncioTestCase):
 
     def test_snapshot_reads_workspace_preference(self):
         self.assertIn("vivaldi.prefs.get('vivaldi.workspaces.list'", SNAPSHOT)
-        self.assertIn("chrome.runtime.lastError", SNAPSHOT)
+        prefs_read = SNAPSHOT[SNAPSHOT.index("vivaldi.prefs.get(") :]
+        self.assertIn("const error = chrome.runtime.lastError;", prefs_read)
+        self.assertIn("resolve(error ? {error:", prefs_read)
         self.assertNotIn("vivaldi.workspaces.getAll", SNAPSHOT)
 
     async def test_supported_preference_lists_workspaces_without_icons(self):
@@ -261,6 +263,7 @@ class WorkspaceSnapshotTests(unittest.IsolatedAsyncioTestCase):
                     {"id": WORKSPACE_A, "name": "Invented One", "icon": "<svg/>", "emoji": "*"},
                     {"id": WORKSPACE_B, "name": "Invented Two", "icon": "<svg/>"},
                     {"id": 0, "name": "Invented Zero", "icon": "<svg/>", "emoji": None},
+                    {"id": 2**53 - 1, "name": "Invented Max", "icon": "<svg/>", "emoji": ""},
                 ]
             )
         )
@@ -270,6 +273,7 @@ class WorkspaceSnapshotTests(unittest.IsolatedAsyncioTestCase):
                 {"id": WORKSPACE_A, "name": "Invented One", "emoji": "*"},
                 {"id": WORKSPACE_B, "name": "Invented Two", "emoji": None},
                 {"id": 0, "name": "Invented Zero", "emoji": None},
+                {"id": 2**53 - 1, "name": "Invented Max", "emoji": None},
             ],
         )
         self.assertTrue(state["capabilities"]["workspaces"])
@@ -290,11 +294,14 @@ class WorkspaceSnapshotTests(unittest.IsolatedAsyncioTestCase):
                 tab(3),
                 tab(4, {"panelId": "WebPanel_invented", "workspaceId": WORKSPACE_A}),
                 tab(5, {"workspaceId": 0}),
+                tab(6, {"panelId": None, "workspaceId": WORKSPACE_B}),
+                tab(7, {"workspaceId": 2**53 - 1}),
             ],
         )
         tabs = state["windows"][0]["tabs"]
         self.assertEqual(
-            [item["workspace_id"] for item in tabs], [WORKSPACE_A, None, None, None, 0]
+            [item["workspace_id"] for item in tabs],
+            [WORKSPACE_A, None, None, None, 0, WORKSPACE_B, 2**53 - 1],
         )
         self.assertEqual(json.loads(tabs[0]["vivExtData"])["ext"], "kept")
 
