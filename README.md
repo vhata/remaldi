@@ -1,3 +1,5 @@
+<img src="assets/remaldi.svg" alt="Remaldi browser command logo" width="80" height="80">
+
 # Remaldi
 
 One local Vivaldi control client and background service. The first browser command
