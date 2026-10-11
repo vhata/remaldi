@@ -13,9 +13,9 @@ EVENT_SETUP_TIMEOUT = 2
 
 # Hooks survive in the UI document across service restarts, so a changed hook set bumps
 # the version and replaces listeners installed by an earlier one.
-# The vivaldi.prefs.onChanged argument shape has not been observed. The filter accepts a
-# path string, or an object (or array of objects) with a string path or key, and
-# invalidates on any shape it does not recognise.
+# vivaldi.prefs.onChanged listeners receive (path, {value, defaultValue, store}) with the
+# full dotted preference path; this is how Vivaldi 8.2's own preference cache reads it
+# (static reading, see docs/VIVALDI_CONTROL_SURFACE.md "Events").
 EVENT_HOOKS = """(() => {
  const key = '__remaldiEventHooks';
  const version = 2;
@@ -25,15 +25,7 @@ EVENT_HOOKS = """(() => {
    try { event.removeListener(listener); } catch {}
  }
  const notify = () => { if (typeof globalThis.__remaldiChanged === 'function') globalThis.__remaldiChanged('dirty'); };
- const workspacesPath = 'vivaldi.workspaces.list';
- const prefPath = item => typeof item === 'string' ? item
-   : typeof item?.path === 'string' ? item.path
-   : typeof item?.key === 'string' ? item.key : null;
- const related = path => path === workspacesPath || path.startsWith(workspacesPath + '.') || workspacesPath.startsWith(path + '.');
- const prefChanged = change => {
-   const paths = (Array.isArray(change) ? change : [change]).map(prefPath);
-   if (paths.length === 0 || paths.includes(null) || paths.some(related)) notify();
- };
+ const prefChanged = path => { if (path === 'vivaldi.workspaces.list') notify(); };
  const viv = typeof vivaldi === 'undefined' ? null : vivaldi;
  const installed = [];
  const groups = [

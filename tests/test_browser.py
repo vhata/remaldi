@@ -174,5 +174,5 @@ class BrowserTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(expression, EVENT_HOOKS)
         self.assertIn("[viv?.prefs, ['onChanged'], prefChanged]", expression)
         self.assertIn("[viv?.tabsPrivate, ['onExtDataChanged'], notify]", expression)
-        self.assertIn("'vivaldi.workspaces.list'", expression)
+        self.assertIn("path => { if (path === 'vivaldi.workspaces.list') notify(); }", expression)
         self.assertNotIn("vivaldi.workspaces,", expression)
