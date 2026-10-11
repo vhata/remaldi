@@ -12,6 +12,5 @@ htmlcov/
 *.log
 .DS_Store
 .worktrees/
-.feral/
-AUDIT.md
+.docket/
 .evidence/

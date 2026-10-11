@@ -3,14 +3,14 @@
 # placeholder branches. Dry run by default and the dry run changes nothing;
 # pass --apply to act.
 #
-# Usage: cleanup-landed.sh [--apply] [--base main] [--empty] [--discard-ignored]
+# Usage: docket/scripts/cleanup-landed.sh [--apply] [--base main] [--empty] [--discard-ignored]
 #   A branch is "landed" only when gh finds a merged PR whose head was this
 #   branch AND the branch's current tip is the commit that PR merged. A branch
 #   with commits after the merged head is kept and reported.
 #   --empty also removes branches with no commits beyond the base, no PR and no
 #   worktree (harness placeholders such as worktree-agent-*).
 #   Worktrees with modified or untracked files are never removed. Worktrees
-#   with ignored files (caches, evidence, .feral/) are kept unless
+#   with ignored files (caches, evidence, .docket/) are kept unless
 #   --discard-ignored is given. Nothing is pushed; remote branches are untouched.
 set -euo pipefail
 
@@ -37,6 +37,8 @@ if [ "$have_gh" -eq 0 ]; then
   [ "$empty" -eq 1 ] || { echo "cleanup-landed: nothing to do without gh; pass --empty to remove placeholder branches"; exit 0; }
 fi
 current="$(git branch --show-current || true)"
+# The main worktree is listed first; it can never be removed, so a branch checked out there is only reported.
+main_wt="$(git worktree list --porcelain | awk '/^worktree / { print substr($0, 10); exit }')"
 
 wt_for() {
   git worktree list --porcelain | awk -v b="refs/heads/$1" '
@@ -74,6 +76,10 @@ for br in $(git for-each-ref --format='%(refname:short)' refs/heads/); do
   [ -n "$reason" ] || continue
 
   path="$(wt_for "$br")"
+  if [ -n "$path" ] && [ "$path" = "$main_wt" ]; then
+    echo "keep $br: $reason, but it is checked out in the main worktree $path (switch it to $base there, then rerun)"
+    kept=$((kept + 1)); continue
+  fi
   if [ -n "$path" ]; then
     if [ -n "$(git -C "$path" status --porcelain 2>/dev/null)" ]; then
       echo "keep $br: $reason, but worktree $path has modified or untracked files"

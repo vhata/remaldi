@@ -1,63 +1,31 @@
 # Working on Remaldi
 
-- Follow the user's selected task and [SPEC.md](SPEC.md). Keep independently
-  shippable discoveries out of its implementation; record them in [TODO.md](TODO.md).
-- Respect [ARCHITECTURE.md](ARCHITECTURE.md). Never launch or restart the browser,
-  replay uncertain commands, or publish credentials or private browser captures.
-- Before selecting work, inspect TODO readiness, review mappings, open PRs,
-  remote branches, and worktrees. Draft PRs are shared active claims; an empty
-  local queue does not prove nobody is working. Disclose unavailable visibility.
-- Give each task one named owner and a dedicated branch. Parallelize independent
-  work where practical; concurrent writers use isolated worktrees. The coordinator
-  owns integration and shared interfaces. Follow [the TODO guide](docs/TODO_GUIDE.md)
-  for exact claim/resolution markers, dependencies, and partial completion.
-- Authors fix findings; separate reviewers inspect actual changes and verify
-  fixes before readiness. Self-review and automated checks do not replace review.
-  Follow [the review guide](docs/CODE_REVIEW_GUIDE.md); routine PR reviews do not
-  create permanent codebase-review snapshots.
-- Keep PRs draft until implementation, relevant [checks](docs/QUALITY.md), and
-  independent review are complete. Then mark ready without waiting for approval.
-  Return to draft if a gate becomes incomplete. The user owns final review,
-  merges, releases, and tags unless explicitly delegated.
-- Use focused commits with lasting problem/result/validation descriptions.
-  Preserve unrelated changes and historical commits. Report actual checks,
-  limitations, active ownership, and unresolved work.
+Remaldi is a local control client and on-demand daemon for an already-running
+Vivaldi browser. Follow the user's selected task, [SPEC.md](SPEC.md) and
+[ARCHITECTURE.md](ARCHITECTURE.md); never describe an unsupported or unverified
+capability as delivered browser behaviour.
 
-Python setup and executable quality gates live in [docs/QUALITY.md](docs/QUALITY.md).
+<!-- docket:begin -->
 
-## Local workflow entrypoints
+## Docket
 
-- Every task uses one branch and one worktree, including solo work. New branches
-  use `todo/<slug>`, `review/<slug>`, or `fix/<slug>` for direct requests.
-  Worktrees live in ignored `.worktrees/`.
-- Run `bash scripts/workflow/claim-check.sh <slug>` before claiming, then
-  `bash scripts/workflow/start-work.sh <queue> <slug>`. Coordinate any hit.
-- PR bodies open with `## Why` and record scope, markers, validation, and
-  `## Review` naming reviewer, exact reviewed revision, findings and dispositions.
-  If GitHub is unavailable, save `.feral/pr-<slug>.md` and disclose a local claim.
-- Two things go straight to `main` without a branch or PR: documentation that
-  records work to be done (adding or triaging `TODO.md` entries, and plans; a plan
-  is planning for work, not work, and everything it describes still goes through
-  branches, PRs and review), and housekeeping metadata files such as
-  `.git-blame-ignore-revs`, only when the user says so for that case. Extrapolate
-  with common sense and say so in the commit; everything else, including all code
-  and documentation that describes behaviour, goes through a PR. Rebase rather
-  than merge main into task branches.
-  The user lands by squash; retain the PR title/body as the lasting explanation.
-  Never merge, release, tag, deploy or change hosting settings without delegation.
-- Interactive branch pushes and draft PRs are normal task work. Unattended runs
-  stay local unless push authority is explicit; log decisions and undo instructions
-  in ignored `AUDIT.md`. Do not discard dirty worktrees or unmerged branches.
-- Parallel writers have disjoint ownership; the coordinator serializes queue edits.
-  Cap concurrent heavy checks at two. Independent reviewers report findings;
-  authors fix, reviewers verify subsequent changes. Return a PR to draft if its
-  checks or review become incomplete.
+This project is run with docket. Read [docket/CONTRACT.md](docket/CONTRACT.md) before any work; it is the authoritative workflow, and this section records only this project's settings. The installer keeps this section current: the text above the list is rewritten on every run, the list keeps the values this project has set, and the section may sit anywhere in this file.
 
-- Use your own Python 3.12 virtualenv locally. CI and managed hooks use Python 3.12
-  in their own environments. `scripts/setup.sh` installs dependencies/hooks;
-  `scripts/check.sh` is the shared gate.
+- Queue areas: `[BROWSER]` (target discovery, connections and reconnection; `browser.py`), `[STATE]` (snapshots, capabilities and event invalidation; `adapter.py`), `[ACCEPTANCE]` (live browser acceptance scenarios), `[CLIENT]` (CLI and socket client; `__main__.py`, `client.py`), `[SERVICE]` (operation registry, runtime paths and locks; `service.py`, `runtime.py`), `[TRANSPORT]` (DevTools request correlation and event routing; `transport.py`), `[TOOLING]` (scripts, hooks, CI, dependencies), `[DOCS]`.
+- Concurrency cap: 2 heavy checks (full `scripts/check.sh` runs or package builds) at once.
+- Merging and releases: the user owns final review, merges, releases, tags, deploys and hosting settings unless they delegate one explicitly in that turn. There is no standing delegation.
+- Optional pieces in force: both queues (no roadmap queue), the review ledger (installed, with no baseline until a separately requested codebase review), scheduled validation of `main`, and stacked PRs when needed; an unlanded parent prevents landing, not completion of the child's own checks and review.
+- Environment: never launch or restart the browser, never replay a command whose outcome is uncertain, and never publish credentials or private browser captures (tab titles, URLs, workspace names, profile data) in PRs, evidence or commits. Live browser scenarios run only when the user selects and authorises one, against a debug-enabled browser the user is already running; see [docs/QUALITY.md](docs/QUALITY.md#live-browser-acceptance). Use your own Python 3.12 virtualenv locally; CI and the managed hooks use Python 3.12 in their own environments. `scripts/setup.sh` installs dependencies and hooks and `scripts/check.sh` is the shared gate; `REMALDI_PYTHON` selects the interpreter.
+- Commits: bodies record the problem, the result and the validation. Preserve unrelated changes and historical commits. No generated-with footers.
+- Reports: name active ownership and claims alongside the checks run.
 
-- The review ledger is installed but has no baseline until a separately requested
-  codebase review. Scheduled validation and both queues are in force. Stacks are
-  optional; an unlanded parent prevents landing, not completion of scoped review.
-- Read [docs/DECISIONS.md](docs/DECISIONS.md) before changing a non-obvious choice.
+<!-- docket:end -->
+
+## Where to find what
+
+- `README.md`: running the client, state and protocol, development setup.
+- `SPEC.md`: accepted scope, evidence boundaries, remaining acceptance.
+- `ARCHITECTURE.md`: boundaries, interfaces and ownership, failure and acceptance invariants.
+- `docs/DECISIONS.md`: non-obvious choices and their trade-offs. Read before changing one.
+- `docs/QUALITY.md`: Python setup, the gates, evidence boundaries, live browser acceptance, CI and hosting, and the review inputs.
+- `TODO.md`, `review/`: deferred work and the review ledger.

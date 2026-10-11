@@ -2,8 +2,8 @@
 # Claim a queue entry: run the claim check, then create the branch and its
 # worktree so the provisional claim is visible to other workers immediately.
 #
-# Usage: start-work.sh <queue> <slug> [--base main] [--dir .worktrees] [--no-check]
-#   queue: todo | review | roadmap | fix | feature (becomes the branch prefix)
+# Usage: docket/scripts/start-work.sh <queue> <slug> [--base main] [--dir .worktrees] [--no-check]
+#   queue: todo | review | roadmap | fix | task (becomes the branch prefix)
 #   The branch is "<queue>/<slug>" and the worktree "<dir>/<queue>-<slug>".
 #
 # Prints the worktree path and the next steps. Does not push anything.
@@ -31,14 +31,25 @@ fi
 
 branch="$queue/$slug"
 path="$dir/$queue-$slug"
-if ! git check-ignore -q "$dir/probe" 2>/dev/null; then
-  exclude="$(git rev-parse --git-common-dir)/info/exclude"
-  mkdir -p "$(dirname "$exclude")"
-  printf '%s/\n' "$dir" >> "$exclude"
-  echo "start-work: $dir was not ignored; added it to the local git exclude file ($exclude). Add '$dir/' to .gitignore in your next PR."
-fi
+# Make sure the worktree directory and the local docket state directory are
+# ignored. Only directories git does not already ignore are appended, so
+# repeated runs never duplicate a line.
+exclude="$(git rev-parse --git-path info/exclude)"
+for ignored in "$dir" ".docket"; do
+  if ! git check-ignore -q "$ignored/probe" 2>/dev/null; then
+    mkdir -p "$(dirname "$exclude")"
+    printf '%s/\n' "$ignored" >> "$exclude"
+    echo "start-work: $ignored was not ignored; added it to the local git exclude file ($exclude). Add '$ignored/' to .gitignore in your next PR."
+  fi
+done
 git fetch --quiet origin "$base" 2>/dev/null || true
 start="origin/$base"; git rev-parse --verify --quiet "$start" >/dev/null || start="$base"
 git worktree add --quiet -b "$branch" "$path" "$start"
 echo "created branch $branch at $path (from $start)"
-echo "next: cd $path; run the repo's setup script if it exists (scripts/setup.sh); commit early; open a draft PR after the first meaningful commit with 'Claims <queue>: $slug' in the body."
+case "$queue" in
+  todo) marker="Claims TODO: $slug" ;;
+  review) marker="Claims review backlog: $slug" ;;
+  roadmap) marker="Claims roadmap: $slug" ;;
+  *) marker="" ;;
+esac
+echo "next: cd $path; run the repo's setup script if it exists (scripts/setup.sh); commit early; open a draft PR after the first meaningful commit${marker:+ with '$marker' in the body}."
