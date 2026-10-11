@@ -13,7 +13,7 @@ switching is the first friendly mutation, not the boundary of the product.
 | On-demand service, status, stop, private local socket | Automated lifecycle tests; status/stop do not start an absent service. |
 | Persistent correlated DevTools connections, discovery, reconnection | Fake-WebSocket tests and read-only live connection/reuse checks on 2026-10-02. |
 | Window/tab state, capability discovery, event invalidation, shared refreshes | Automated tests and read-only live state/event subscription checks on 2026-10-02. |
-| Friendly workspace dispatch and raw/evaluate access | Automated dispatch tests; live raw request checked on 2026-10-02. Visible workspace switching remains unverified. A static reading on 2026-10-08 found the dispatched command is positional, not ID-based; see `fix-workspace-switch-by-id` in TODO. |
+| Friendly workspace dispatch and raw/evaluate access | Automated tests of the `JS_LOCAL_ACTIVATE_WORKSPACE` dispatch by internal ID and of its pre-dispatch checks (ID in `vivaldi.workspaces.list`, window present and not minimized); live raw request checked on 2026-10-02. The dispatch path comes from a static reading of Vivaldi 8.2 on 2026-10-08. Visible workspace switching remains unverified. |
 | Python quality gates, secret audit, package builds, MIT license | Executable gates; macOS/Linux CI passed at `83b49ee`. This is not browser acceptance. |
 
 Vivaldi 8.2.4133.84 has no `vivaldi.workspaces` API, so the snapshot reports

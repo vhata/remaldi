@@ -18,7 +18,7 @@ source .venv/bin/activate
 python -m pip install -e .
 remaldi status
 remaldi state
-remaldi workspace switch 2
+remaldi workspace switch WORKSPACE_ID
 remaldi raw Browser.getVersion
 remaldi evaluate 'chrome.windows.getCurrent()' --await-promise --return-by-value
 remaldi stop
@@ -27,10 +27,28 @@ remaldi stop
 `python -m remaldi` and the checkout launcher `./bin/remaldi` accept the same
 commands when their interpreter has the dependencies installed. `serve` runs in the foreground
 for debugging. `status` and `stop` never start a missing service. Output is JSON;
-errors go to stderr and return a nonzero exit status. Workspace numbers are Vivaldi
-internal IDs, not list positions. `--window-id` selects an explicit window; otherwise
-switching uses the uniquely focused window. A successful switch result means the
-command was dispatched, not that the visible workspace change was verified.
+errors go to stderr and return a nonzero exit status.
+
+`workspace switch` takes a Vivaldi internal workspace ID, a nonnegative decimal
+number, not a list position. The IDs are the `id` fields of Vivaldi's
+`vivaldi.workspaces.list` preference; this prints them without names:
+
+```bash
+remaldi evaluate "new Promise(r => vivaldi.prefs.get('vivaldi.workspaces.list', p => r(p.value.map(w => w.id))))" --await-promise --return-by-value
+```
+
+`--window-id` selects an explicit window; otherwise switching uses the uniquely
+focused window. In the same browser evaluation as the switch, Remaldi first checks
+that the ID is in that preference and that the window exists and is not minimized
+(Vivaldi would create a tab tagged with an unknown ID, and a minimized window
+ignores the action). Otherwise it fails with `unknown_workspace`,
+`workspaces_unavailable`, `minimized_window` or `invalid_parameters` and dispatches
+nothing. It then dispatches Vivaldi's `JS_LOCAL_ACTIVATE_WORKSPACE` action, as the
+native Window menu does. If the workspace is already active in another window,
+Vivaldi focuses that window instead of switching the selected one; Remaldi reports
+this as a normal dispatch (read from Vivaldi 8.2's code, not observed live). A
+successful result, `{"dispatched": true}`, means the action was dispatched, not that
+a visible workspace change was verified.
 
 Vivaldi must already be running with `--remote-debugging-port=9222`. On macOS,
 launch it with `open -a Vivaldi --args --remote-debugging-port=9222` after quitting
