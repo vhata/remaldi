@@ -45,11 +45,16 @@ refreshes the Docket section of `AGENTS.md`, and reports (but does not
 delete) files here that the skill no longer ships. Commit the result.
 
 `VERSION` holds the skill commit the files came from, as `<sha> <date>`
-(UTC). A `-dirty` suffix means the skill checkout had uncommitted changes
-when it was installed; resync from a clean checkout before relying on it.
+(UTC). It is always a commit of the docket repository: when the skill is
+installed as a squashed subtree of another repository, the installer reads the
+upstream commit from the subtree's `git-subtree-split` trailer rather than
+recording the host repository's own commit. A `-dirty` suffix means the
+skill's directory had uncommitted changes when it was installed; resync from a
+clean checkout before relying on it.
 
-`--check` compares `VERSION` with the skill checkout's `HEAD` before diffing
-any file. Run it from a checkout at or beyond the installed commit: when the
+`--check` compares `VERSION` with the skill commit of the checkout it runs
+from (`HEAD` in a clone of the skill, the subtree's upstream commit in a
+subtree host) before diffing any file. Run it from a checkout at or beyond the installed commit: when the
 installed commit is newer, it prints "the installed copy (<sha>) is newer than
 this skill checkout (<head>); update the skill checkout before resyncing" and
 exits 1 without a file diff, because a stale checkout would otherwise report
@@ -63,9 +68,12 @@ Both install and `--check` warn, without failing, when `docs/QUALITY.md`
 exists without a `## Review inputs` heading (the vendored review guide links
 it, so `check-links.sh` fails until the section exists) and when files of the
 hand-copied layout that preceded `docket/` are still present
-(`scripts/workflow/`, `docs/TODO_GUIDE.md`, `docs/CODE_REVIEW_GUIDE.md`); the
-setup reference in the skill has the migration notes. Install also removes a
-stale `.feral/` line from `.git/info/exclude`.
+(`scripts/workflow/`, `docs/TODO_GUIDE.md`, `docs/CODE_REVIEW_GUIDE.md`), and
+while `docs/superpowers/` exists or a bullet in the Docket section of
+`AGENTS.md` names it (plans and design specs live where
+[CONTRACT.md](CONTRACT.md) says); the setup reference in the skill has the
+migration notes. Install also removes a stale `.feral/` line from
+`.git/info/exclude`.
 
 ## docket/ and .docket/
 
@@ -90,7 +98,8 @@ kinds of content:
 | `VERSION` | The skill commit and date these files were installed from. |
 | `scripts/ci.sh` | The single entry point CI calls; runs every validator below in order and stops at the first failure. On pull requests it reads the PR body from the event payload (`GITHUB_EVENT_PATH`, with `jq`) and falls back to `gh pr view`, which needs `pull-requests: read`. |
 | `scripts/check-queues.sh` | Validates the structure of `TODO.md` and `review/BACKLOG.md`: entry format, unique slugs, `Source` lines, cross-references and dependencies. |
-| `scripts/check-pr-markers.sh` | Validates a pull request description's markers against the queues at the base and head commits. |
+| `scripts/check-pr-markers.sh` | Validates a pull request description's markers against the queues at the base and head commits, and its `Type:` line. |
+| `scripts/pr-labels.sh` | Derives a pull request's labels from its branch, its `Type:` line and the queue entries it claims or resolves; `--apply` creates missing labels and sets them on the pull request. |
 | `scripts/check-links.sh` | Checks that relative Markdown links, images and `#anchors` resolve to existing files and headings. |
 | `scripts/claim-check.sh` | Looks for existing claims on a slug: open and merged pull requests (a body marker, or a head branch whose last path component is the slug), branches and worktrees. `--self` rechecks from inside the claimed worktree, ignoring the worker's own branch. |
 | `scripts/start-work.sh` | Runs the claim check, then creates the `<queue>/<slug>` branch and its worktree. |
