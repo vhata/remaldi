@@ -62,12 +62,12 @@ cannot fix this by reconnecting. The daemon remains alive while unavailable.
 
 `state` returns windows, their tabs, workspaces, and capabilities. Workspaces are
 read from Vivaldi's `vivaldi.workspaces.list` preference and listed as `{id, name,
-emoji}` (`emoji` is null when unset or empty). Each tab has a `workspace_id` taken from its
-`vivExtData`, or null for tabs in no workspace, web-panel tabs and unreadable tab
-data. When the preference is unavailable or has an unexpected shape, the snapshot
-reports `workspaces: null` and a false `workspaces` capability instead of failing.
-This source was found by a read-only probe of Vivaldi 8.2; Remaldi's reading of it
-has not yet been checked against a live browser.
+emoji}` (`emoji` is null when unset or empty). Each tab has a `workspace_id` taken
+from its `vivExtData`, or null for tabs in no workspace, web-panel tabs and
+unreadable tab data. When the preference is unavailable or has an unexpected
+shape, the snapshot reports `workspaces: null` and a false `workspaces` capability
+instead of failing. A read-only check against Vivaldi 8.2.4133.84 on 2026-10-12
+confirmed the workspace listing and tab membership.
 
 Snapshots expire after five seconds; `state --refresh` forces recollection. Tab
 and window events, changes to the workspace preference, and tab data changes
