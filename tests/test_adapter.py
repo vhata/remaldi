@@ -305,6 +305,46 @@ class WorkspaceSnapshotTests(unittest.IsolatedAsyncioTestCase):
         )
         self.assertEqual(json.loads(tabs[0]["vivExtData"])["ext"], "kept")
 
+    async def test_tab_workspace_id_in_exponent_form_is_an_integer(self):
+        # Vivaldi writes vivExtData workspace IDs in JSON exponent form, which
+        # json.loads parses as a float.
+        exponent_id = 1712345678901
+        state = await self.snapshot(
+            workspace_reading([{"id": exponent_id, "name": "Invented", "icon": ""}]),
+            [
+                tab(1, '{"workspaceId":1.712345678901e+12}'),
+                tab(2, '{"workspaceId":5.0}'),
+                tab(3, '{"workspaceId":0.0}'),
+                tab(4, '{"workspaceId":9.007199254740991e+15}'),
+            ],
+        )
+        reported = [item["workspace_id"] for item in state["windows"][0]["tabs"]]
+        self.assertEqual(reported, [exponent_id, 5, 0, 2**53 - 1])
+        self.assertTrue(all(type(value) is int for value in reported))
+        self.assertEqual(reported[0], state["workspaces"][0]["id"])
+
+    async def test_tab_workspace_id_rejects_unusable_floats(self):
+        values = {
+            "fractional": '{"workspaceId":1.7123456789015e+12}',
+            "small fraction": '{"workspaceId":0.5}',
+            "negative": '{"workspaceId":-1.0e+3}',
+            "above safe range": '{"workspaceId":9.007199254740992e+15}',
+            "huge": '{"workspaceId":1e+300}',
+            "NaN": '{"workspaceId":NaN}',
+            "infinity": '{"workspaceId":Infinity}',
+            "negative infinity": '{"workspaceId":-Infinity}',
+        }
+        tabs = [tab(index, value) for index, value in enumerate(values.values())]
+        state = await self.snapshot(workspace_reading([]), tabs)
+        reported = state["windows"][0]["tabs"]
+        for index, label in enumerate(values):
+            with self.subTest(label):
+                self.assertIsNone(reported[index]["workspace_id"])
+
+    async def test_workspace_list_ids_stay_strict_integers(self):
+        state = await self.snapshot(workspace_reading([{"id": 5.0, "name": "Invented"}]))
+        self.assertIsNone(state["workspaces"])
+
     async def test_malformed_tab_data_is_null_per_tab(self):
         values = [
             "{not json",

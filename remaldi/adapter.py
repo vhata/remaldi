@@ -134,7 +134,15 @@ def _tab_workspace(tab: JsonObject) -> int | None:
         return None
     if not isinstance(parsed, dict) or parsed.get("panelId") is not None:
         return None
-    return _safe_id(parsed.get("workspaceId"))
+    identifier = parsed.get("workspaceId")
+    # Vivaldi writes these IDs in JSON exponent form (1.234567890123e+12), which
+    # json.loads parses as a float; accept integral floats in the safe range.
+    # is_integer() is also false for NaN and infinities.
+    if isinstance(identifier, float):
+        if not identifier.is_integer():
+            return None
+        identifier = int(identifier)
+    return _safe_id(identifier)
 
 
 def _window(window: object) -> object:
