@@ -1,5 +1,30 @@
 # Decisions
 
+## 2026-10-13: Curate the command allowlist from Vivaldi's bundle
+
+`command run` dispatches only names in `remaldi/commands.py`: the command
+registry read from the installed 8.2.4133.84 `bundle.js` with the
+`registered.txt` procedure in the control-surface guide, plus the local actions
+in its table. `vivaldi.actions` is not a source, because it lists only bound
+commands and can name user chains. The list is a Python module, one registry
+name per line, so it ships in the wheel without package-data configuration and
+diffs directly against a regenerated `registered.txt`. The cost is a manual
+refresh after each Vivaldi update; a name Vivaldi drops stays listed and
+dispatches to nothing.
+
+`JS_LOCAL_ACTIVATE_WORKSPACE` is denied as well as the names the queue entry
+listed. Dispatched directly it creates a tab for an unknown ID, and
+`workspace switch` already checks the ID first. Local actions must have a
+parameter: without one Vivaldi's handler declines and the name falls through
+to the registry and then to a chain lookup.
+
+Vivaldi runs a registered command before it looks for a chain of the same
+name, but an unregistered name or a declined local action reaches the chain
+lookup. So the dispatch expression reads `vivaldi.chained_commands.command_list`
+and refuses any name a chain uses, for every command rather than only the
+cases that can fall through. If the chain list cannot be read, nothing is
+dispatched.
+
 ## 2026-10-11: Vendor the workflow machinery under docket/
 
 The generic workflow (contract, queue and review guides, validators) is vendored
