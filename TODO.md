@@ -38,24 +38,6 @@ before calling ready work available. Priorities were set in triage on 2026-10-11
     windows; how to remove them; and how several windows map onto `window.html`
     targets (one window was observed).
 
-### Unprioritized
-
-- [TOOLING] `execute-browser-expressions-in-tests` — **Run the JavaScript Remaldi evaluates in the browser under test, against fake `chrome` and `vivaldi` objects.** The suite only checks expression text, so inverted or neutered logic inside an expression passes.
-  - Source: writers and independent review of `fix-workspace-switch-by-id` and
-    `implement-workspace-enumeration`, 2026-10-11. A reviewer applied 17
-    mutations to the switch expression; 12 survived the suite, including an
-    inverted workspace-membership check that would dispatch an unknown ID (which
-    makes Vivaldi create a tab tagged with it). Both writers and the reviewer ran
-    the expressions in Node from uncommitted scratch harnesses.
-  - Starting point: `SNAPSHOT` and the switch expression in `remaldi/adapter.py`,
-    `EVENT_HOOKS` in `remaldi/browser.py`; `scripts/check.sh`, the hooks and CI.
-  - Dependencies: none.
-  - Triage outcome: whether to add Node as a development, hook and CI dependency
-    (a tooling and CI decision for the user), or another way to execute the
-    expressions; whether a missing interpreter fails or skips (an empty or
-    skipped suite is a failure here); and how fakes are kept honest about
-    Vivaldi's real callback and `lastError` behaviour.
-
 ## Needs proof of concept
 
 ### P2 Normal
