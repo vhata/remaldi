@@ -5,6 +5,7 @@ import json
 import time
 from typing import Any, Protocol
 
+from .commands import DENIED, LOCAL_ACTIONS, REGISTERED_COMMANDS, VIVALDI_VERSION
 from .errors import ControlError
 from .protocol import JsonObject
 
@@ -25,7 +26,7 @@ SNAPSHOT = """(async () => {
      });
    } catch (error) { resolve({error:String(error?.message ?? error)}); }
  }) : null;
- return {windows, workspace_preference:workspacePreference, capabilities:{windows:true, tabs:true, workspace_switch:switchSupported}};
+ return {windows, workspace_preference:workspacePreference, capabilities:{windows:true, tabs:true, workspace_switch:switchSupported, command_dispatch:switchSupported}};
 })()"""
 
 # Checks and dispatch run in one evaluation, so the workspace list and window
@@ -72,7 +73,47 @@ SWITCH_REJECTIONS = {
     ),
 }
 
+# The same dispatch for any allowlisted name. A name that is not in Vivaldi's
+# command registry, or a local action whose handler declines its parameter,
+# falls through to a user-defined chain of that name, so a name shared with a
+# chain is rejected first, as is a minimized window, which ignores dispatches.
+RUN_COMMAND = """(async () => {
+ const name = __NAME__;
+ const parameter = __PARAMETER__;
+ const windowId = __WINDOW_ID__;
+ const chains = await new Promise(resolve => {
+   if (typeof vivaldi === 'undefined' || typeof vivaldi.prefs?.get !== 'function') { resolve(null); return; }
+   vivaldi.prefs.get('vivaldi.chained_commands.command_list', pref => resolve(chrome.runtime.lastError ? null : pref?.value));
+ });
+ if (!Array.isArray(chains)) return { rejected: 'chains_unavailable' };
+ if (chains.some(chain => chain?.name === name)) return { rejected: 'chain_name' };
+ const selected = await new Promise(resolve => chrome.windows.get(windowId, value => {
+   resolve(chrome.runtime.lastError ? null : value);
+ }));
+ if (!selected) return { rejected: 'window_unavailable' };
+ if (selected.state === 'minimized') return { rejected: 'minimized_window' };
+ vivaldi.menubar.onActivated.dispatch(windowId, name, parameter);
+ return { dispatched: true };
+})()"""
+
+COMMAND_REJECTIONS = {
+    "chains_unavailable": (
+        "command_chains_unavailable",
+        "Vivaldi's command chain preference could not be read; nothing was dispatched.",
+    ),
+    "chain_name": (
+        "chain_not_allowed",
+        "A user-defined command chain has this name; chains are never dispatched.",
+    ),
+    "window_unavailable": SWITCH_REJECTIONS["window_unavailable"],
+    "minimized_window": (
+        "minimized_window",
+        "The selected window is minimized and would ignore the command; nothing was dispatched.",
+    ),
+}
+
 MAX_WORKSPACE_ID = 2**53 - 1
+MAX_PARAMETER_LENGTH = 8192
 
 
 def workspace_parameter(workspace_id: object) -> str:
@@ -87,6 +128,70 @@ def workspace_parameter(workspace_id: object) -> str:
     if not 0 <= value <= MAX_WORKSPACE_ID:
         raise ControlError("invalid_parameters", "workspace_id must be a nonnegative decimal ID.")
     return str(value)
+
+
+def _decimal(value: str) -> str | None:
+    """Return the canonical form of a nonnegative safe decimal integer string."""
+    if not (value.isascii() and value.isdigit()):
+        return None
+    digits = value.lstrip("0") or "0"
+    if len(digits) > len(str(MAX_SAFE_INTEGER)) or int(digits) > MAX_SAFE_INTEGER:
+        return None
+    return digits
+
+
+def command_parameter(name: object, parameter: object) -> tuple[str, str]:
+    """Check a name against the allowlist and return it with the parameter to dispatch.
+
+    Registry commands take no parameter and are dispatched with an empty one,
+    as Vivaldi ignores it. Allowed local actions require theirs.
+    """
+    if not isinstance(name, str) or not name:
+        raise ControlError("invalid_parameters", "name must be a command name.")
+    if name in DENIED:
+        raise ControlError(
+            "command_denied",
+            f"{name} is never dispatched: {DENIED[name]}.",
+            name=name,
+        )
+    action = LOCAL_ACTIONS.get(name)
+    if action is None and name not in REGISTERED_COMMANDS:
+        raise ControlError(
+            "unknown_command",
+            f"{name} is not in Remaldi's command list for Vivaldi {VIVALDI_VERSION}; "
+            "user-defined chains are never dispatched. See command list.",
+            name=name,
+        )
+    if action is None:
+        if parameter is not None:
+            raise ControlError(
+                "invalid_parameters",
+                f"{name} is a command; parameter applies only to local actions.",
+                name=name,
+            )
+        return name, ""
+    if not isinstance(parameter, str) or not parameter:
+        raise ControlError(
+            "invalid_parameters",
+            f"{name} requires a parameter: {action.parameter}.",
+            name=name,
+        )
+    if len(parameter) > MAX_PARAMETER_LENGTH:
+        raise ControlError(
+            "invalid_parameters",
+            f"parameter must be at most {MAX_PARAMETER_LENGTH} characters.",
+            name=name,
+        )
+    if action.integer:
+        canonical = _decimal(parameter)
+        if canonical is None:
+            raise ControlError(
+                "invalid_parameters",
+                f"{name} requires a nonnegative decimal {action.parameter}.",
+                name=name,
+            )
+        parameter = canonical
+    return name, parameter
 
 
 def _safe_id(value: object) -> int | None:
@@ -241,36 +346,87 @@ class VivaldiAdapter:
                     "unsupported_operation",
                     "This Vivaldi UI does not expose workspace switching.",
                 )
-            windows = state.get("windows", [])
-            if window_id is None:
-                focused = [window for window in windows if window.get("focused")]
-                if len(focused) != 1:
-                    raise ControlError(
-                        "ambiguous_window",
-                        "Specify window_id when no unique focused window exists.",
-                    )
-                window_id = focused[0]["id"]
-            if (
-                not isinstance(window_id, int)
-                or isinstance(window_id, bool)
-                or not any(window.get("id") == window_id for window in windows)
-            ):
-                raise ControlError(
-                    "invalid_parameters",
-                    "window_id must identify a current browser window.",
-                )
+            window_id = _select_window(state, window_id)
             expression = SWITCH_WORKSPACE.replace(
                 "__WORKSPACE_ID__", json.dumps(parameter)
             ).replace("__WINDOW_ID__", str(window_id))
-            try:
-                result = await self.evaluate(expression)
-            finally:
-                self.invalidate()
-            if isinstance(result, dict) and result.keys() == {"dispatched"}:
-                if result["dispatched"] is True:
-                    return result
-            rejection = result.get("rejected") if isinstance(result, dict) else None
-            if isinstance(rejection, str) and rejection in SWITCH_REJECTIONS:
-                code, message = SWITCH_REJECTIONS[rejection]
-                raise ControlError(code, message, workspace_id=parameter, window_id=window_id)
-            raise ControlError("unsupported_result", "Unexpected workspace switch result.")
+            return await self._dispatch(
+                expression,
+                SWITCH_REJECTIONS,
+                "Unexpected workspace switch result.",
+                workspace_id=parameter,
+                window_id=window_id,
+            )
+
+    async def run_command(
+        self, name: object, parameter: object = None, window_id: object = None
+    ) -> Any:
+        name, parameter = command_parameter(name, parameter)
+        async with self.mutation_lock:
+            state = await self.snapshot()
+            if not state["capabilities"].get("command_dispatch"):
+                raise ControlError(
+                    "unsupported_operation",
+                    "This Vivaldi UI does not expose command dispatch.",
+                )
+            window_id = _select_window(state, window_id)
+            expression = (
+                RUN_COMMAND.replace("__NAME__", json.dumps(name))
+                .replace("__PARAMETER__", json.dumps(parameter))
+                .replace("__WINDOW_ID__", str(window_id))
+            )
+            return await self._dispatch(
+                expression,
+                COMMAND_REJECTIONS,
+                "Unexpected command dispatch result.",
+                name=name,
+                window_id=window_id,
+            )
+
+    async def _dispatch(
+        self,
+        expression: str,
+        rejections: dict[str, tuple[str, str]],
+        unexpected: str,
+        **details: Any,
+    ) -> Any:
+        """Evaluate a checked dispatch once, invalidate state, and interpret the result.
+
+        Must be called with the mutation lock held. The evaluation is never
+        repeated: a lost reply surfaces as the transport's error.
+        """
+        try:
+            result = await self.evaluate(expression)
+        finally:
+            self.invalidate()
+        if isinstance(result, dict) and result.keys() == {"dispatched"}:
+            if result["dispatched"] is True:
+                return result
+        rejection = result.get("rejected") if isinstance(result, dict) else None
+        if isinstance(rejection, str) and rejection in rejections:
+            code, message = rejections[rejection]
+            raise ControlError(code, message, **details)
+        raise ControlError("unsupported_result", unexpected)
+
+
+def _select_window(state: JsonObject, window_id: object) -> int:
+    """Return the explicit window if it exists, or the uniquely focused window."""
+    windows = state.get("windows", [])
+    if window_id is None:
+        focused = [window for window in windows if window.get("focused")]
+        if len(focused) != 1:
+            raise ControlError(
+                "ambiguous_window",
+                "Specify window_id when no unique focused window exists.",
+            )
+        window_id = focused[0]["id"]
+    if (
+        not isinstance(window_id, int)
+        or isinstance(window_id, bool)
+        or not any(window.get("id") == window_id for window in windows)
+    ):
+        raise ControlError(
+            "invalid_parameters",
+            "window_id must identify a current browser window.",
+        )
+    return window_id

@@ -10,6 +10,7 @@ from typing import Any
 from . import PROTOCOL_VERSION
 from .adapter import VivaldiAdapter
 from .browser import Browser
+from .commands import VIVALDI_VERSION, command_list
 from .errors import ControlError
 from .protocol import MAX_MESSAGE, JsonObject
 from .runtime import lock_file, runtime_dir
@@ -26,6 +27,8 @@ class Service:
         self.operations: dict[str, Callable[[JsonObject], Awaitable[Any]]] = {
             "state": self.state,
             "workspace.switch": self.workspace_switch,
+            "command.list": self.command_list,
+            "command.run": self.command_run,
         }
 
     async def state(self, params: JsonObject) -> JsonObject:
@@ -37,6 +40,14 @@ class Service:
     async def workspace_switch(self, params: JsonObject) -> Any:
         self.validate(params, {"workspace_id", "window_id"}, {"workspace_id"})
         return await self.adapter.switch_workspace(**params)
+
+    async def command_list(self, params: JsonObject) -> JsonObject:
+        self.validate(params, set())
+        return {"vivaldi_version": VIVALDI_VERSION, "commands": command_list()}
+
+    async def command_run(self, params: JsonObject) -> Any:
+        self.validate(params, {"name", "parameter", "window_id"}, {"name"})
+        return await self.adapter.run_command(**params)
 
     @staticmethod
     def validate(params: JsonObject, allowed: Set[str], required: Set[str] = frozenset()) -> None:

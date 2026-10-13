@@ -249,6 +249,11 @@ class WorkspaceSnapshotTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(state["windows"][0]["id"], 7)
         self.assertNotIn("workspace_preference", state)
 
+    def test_snapshot_reports_command_dispatch_with_workspace_switch(self):
+        self.assertIn(
+            "workspace_switch:switchSupported, command_dispatch:switchSupported", SNAPSHOT
+        )
+
     def test_snapshot_reads_workspace_preference(self):
         self.assertIn("vivaldi.prefs.get('vivaldi.workspaces.list'", SNAPSHOT)
         prefs_read = SNAPSHOT[SNAPSHOT.index("vivaldi.prefs.get(") :]
