@@ -11,7 +11,6 @@ before calling ready work available. Priorities were set in triage on 2026-10-11
 - [ACCEPTANCE] `verify-live-workspace-switch` — **Validate visible switching and service reuse in a running Vivaldi browser.** Current success confirms dispatch.
   - Source: accepted plan and remaining live acceptance, 2026-10-02.
   - Starting point: workspace CLI and live scenario in docs/QUALITY.md.
-  - Depends on: `fix-workspace-switch-by-id`
   - Related: `implement-workspace-enumeration`
   - Blocked by: an already-running debug-enabled Vivaldi, known workspace IDs,
     and explicit authorization for the selected visible change.
@@ -147,40 +146,12 @@ before calling ready work available. Priorities were set in triage on 2026-10-11
 
 ### P1 High
 
-- [STATE] `fix-workspace-switch-by-id` — **Switch workspaces by internal ID through Vivaldi's local workspace action.** `switch_workspace`
-  dispatches `COMMAND_WORKSPACE_SWITCH_<id>`, but those commands are positional
-  (`_1` means no workspace, `_2` to `_10` the first nine). An internal ID matches no
-  command, and a small number selects by position.
-  - Source: Vivaldi control-surface audit, 2026-10-08, Vivaldi 8.2.4133.84;
-    [docs/VIVALDI_CONTROL_SURFACE.md](docs/VIVALDI_CONTROL_SURFACE.md) ("Workspace switching").
-  - Starting point: `switch_workspace` in `adapter.py`; `tests/test_adapter.py`.
-  - Dependencies: none. `dispatch-named-commands` also edits the adapter's
-    dispatch and window selection; land this first and rebase the other.
-  - Related: `implement-workspace-enumeration`
-  - Contract: dispatch `vivaldi.menubar.onActivated.dispatch(windowId,
-    'JS_LOCAL_ACTIVATE_WORKSPACE', String(workspaceId))`, the path the native
-    Window menu uses. Keep the decimal ID validation and window selection. In
-    the same evaluated expression as the dispatch, first confirm that the ID is in
-    the `vivaldi.workspaces.list` preference, read with `vivaldi.prefs.get` as in
-    `implement-workspace-enumeration` (there is no `vivaldi.workspaces` API; an
-    unknown ID makes Vivaldi create a tab tagged with it), and that
-    `chrome.windows.get(windowId)` is not minimized (minimized windows
-    ignore dispatches). Fail with a structured error otherwise, without dispatching.
-    A workspace already active in another window focuses that window instead of
-    switching the requested one. Document this rather than treat it as an error.
-  - Acceptance: tests assert the dispatched action and parameter, the unknown-ID
-    and minimized-window rejections, and that rejection happens before dispatch.
-    The README describes ID semantics, the focus-other-window case, and that
-    success confirms dispatch only. Visible switching stays with
-    `verify-live-workspace-switch`.
-
 - [STATE] `implement-workspace-enumeration` — **Report workspaces from Vivaldi's workspace preference.** Vivaldi 8.2 has
   no `vivaldi.workspaces` API, so snapshots always report workspaces unsupported.
   - Source: `discover-workspace-enumeration` read-only live probe, 2026-10-08,
     Vivaldi 8.2.4133.84.
   - Starting point: `SNAPSHOT` in `adapter.py` and `EVENT_HOOKS` in `browser.py`.
   - Dependencies: none.
-  - Related: `fix-workspace-switch-by-id` (reads the same preference)
   - Contract: `vivaldi.prefs.get('vivaldi.workspaces.list', callback)` yields
     `{value, defaultValue, store}`. `value` lists `{id, name, icon, emoji?}` with
     unique nonnegative safe-integer IDs in the decimal form `switch_workspace`
@@ -209,8 +180,7 @@ before calling ready work available. Priorities were set in triage on 2026-10-11
     [docs/VIVALDI_CONTROL_SURFACE.md](docs/VIVALDI_CONTROL_SURFACE.md) ("How command dispatch works", "What can be driven", "What not to wrap").
   - Starting point: the service operation registry in `service.py`;
     `switch_workspace` in `adapter.py`; CLI parsing in `__main__.py`.
-  - Dependencies: none. Coordinate with `fix-workspace-switch-by-id` on shared
-    adapter code; that entry lands first.
+  - Dependencies: none.
   - Related: `guard-hazardous-raw-calls`
   - Contract: `command run NAME [--parameter TEXT] [--window-id ID]` and `command list`.
     The allowlist is a curated list committed in Remaldi, taken from the guide's

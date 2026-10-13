@@ -411,14 +411,18 @@ d.Z.addListener((()=>{a.Z.set(u.kWorkspacesList,d.Z.getWorkspaces())}))
 The same initializer sets each window's active workspace from its active tab's
 `vivExtData.workspaceId`.
 
-Remaldi currently sends `COMMAND_WORKSPACE_SWITCH_` plus a caller-supplied number
-described as an internal ID, with an empty parameter. Internal IDs are 13-digit
-numbers, so that name matches no registered command, and small numbers select by
-position. Dispatching `JS_LOCAL_ACTIVATE_WORKSPACE` with the ID as the parameter
-takes the same path as the native Window menu, with no position mapping and no
+Internal IDs are 13-digit numbers, so `COMMAND_WORKSPACE_SWITCH_` plus an ID
+matches no registered command, and small numbers select by position.
+Dispatching `JS_LOCAL_ACTIVATE_WORKSPACE` with the ID as the parameter takes the
+same path as the native Window menu, with no position mapping and no
 nine-workspace limit. Because an unknown ID creates a tab, a caller must check
-the ID against `vivaldi.workspaces.list` first. TODO `fix-workspace-switch-by-id`
-covers the change. None of this has been exercised live.
+the ID against `vivaldi.workspaces.list` first. Remaldi's `workspace switch` does
+this: in one evaluated expression it reads the preference with
+`vivaldi.prefs.get`, checks the ID is listed and that
+`chrome.windows.get(windowId)` is not minimized, and only then dispatches
+`JS_LOCAL_ACTIVATE_WORKSPACE` (`SWITCH_WORKSPACE` in
+[`remaldi/adapter.py`](../remaldi/adapter.py)). None of this has been exercised
+live.
 
 ## What can be driven
 

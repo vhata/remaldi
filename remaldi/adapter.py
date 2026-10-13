@@ -20,6 +20,66 @@ SNAPSHOT = """(async () => {
  return {windows, workspaces, capabilities:{windows:true, tabs:true, workspaces:workspacesSupported, workspace_switch:switchSupported}};
 })()"""
 
+# Checks and dispatch run in one evaluation, so the workspace list and window
+# state are read immediately before dispatching. JS_LOCAL_ACTIVATE_WORKSPACE is
+# the action Vivaldi's native Window menu sends; it takes the internal ID as a
+# string. Vivaldi creates a tab tagged with an ID it does not know and ignores
+# dispatches to a minimized window, so both are rejected first.
+SWITCH_WORKSPACE = """(async () => {
+ const workspaceId = __WORKSPACE_ID__;
+ const windowId = __WINDOW_ID__;
+ const workspaces = await new Promise(resolve => {
+   if (typeof vivaldi === 'undefined' || typeof vivaldi.prefs?.get !== 'function') { resolve(null); return; }
+   vivaldi.prefs.get('vivaldi.workspaces.list', pref => resolve(chrome.runtime.lastError ? null : pref?.value));
+ });
+ if (!Array.isArray(workspaces)) return { rejected: 'workspaces_unavailable' };
+ const known = workspaces.some(entry => entry !== null && typeof entry === 'object'
+   && Number.isSafeInteger(entry.id) && entry.id >= 0 && String(entry.id) === workspaceId);
+ if (!known) return { rejected: 'unknown_workspace' };
+ const selected = await new Promise(resolve => chrome.windows.get(windowId, value => {
+   resolve(chrome.runtime.lastError ? null : value);
+ }));
+ if (!selected) return { rejected: 'window_unavailable' };
+ if (selected.state === 'minimized') return { rejected: 'minimized_window' };
+ vivaldi.menubar.onActivated.dispatch(windowId, 'JS_LOCAL_ACTIVATE_WORKSPACE', workspaceId);
+ return { dispatched: true };
+})()"""
+
+SWITCH_REJECTIONS = {
+    "workspaces_unavailable": (
+        "workspaces_unavailable",
+        "Vivaldi's workspace list preference could not be read; nothing was dispatched.",
+    ),
+    "unknown_workspace": (
+        "unknown_workspace",
+        "workspace_id is not in Vivaldi's workspace list; nothing was dispatched.",
+    ),
+    "window_unavailable": (
+        "invalid_parameters",
+        "window_id must identify a current browser window.",
+    ),
+    "minimized_window": (
+        "minimized_window",
+        "The selected window is minimized and would ignore the switch; nothing was dispatched.",
+    ),
+}
+
+MAX_WORKSPACE_ID = 2**53 - 1
+
+
+def workspace_parameter(workspace_id: object) -> str:
+    """Return the canonical decimal form of a workspace ID, or raise."""
+    value = -1
+    if isinstance(workspace_id, int) and not isinstance(workspace_id, bool):
+        value = workspace_id
+    elif isinstance(workspace_id, str) and workspace_id.isascii() and workspace_id.isdigit():
+        digits = workspace_id.lstrip("0") or "0"
+        if len(digits) <= len(str(MAX_WORKSPACE_ID)):
+            value = int(digits)
+    if not 0 <= value <= MAX_WORKSPACE_ID:
+        raise ControlError("invalid_parameters", "workspace_id must be a nonnegative decimal ID.")
+    return str(value)
+
 
 class Controller(Protocol):
     generation: int
@@ -84,14 +144,7 @@ class VivaldiAdapter:
             return self.cached
 
     async def switch_workspace(self, workspace_id: object, window_id: object = None) -> Any:
-        if (
-            not isinstance(workspace_id, (str, int))
-            or isinstance(workspace_id, bool)
-            or not str(workspace_id).isdigit()
-        ):
-            raise ControlError(
-                "invalid_parameters", "workspace_id must be a nonnegative decimal ID."
-            )
+        parameter = workspace_parameter(workspace_id)
         async with self.mutation_lock:
             state = await self.snapshot()
             if not state["capabilities"].get("workspace_switch"):
@@ -117,9 +170,18 @@ class VivaldiAdapter:
                     "invalid_parameters",
                     "window_id must identify a current browser window.",
                 )
-            command = "COMMAND_WORKSPACE_SWITCH_" + str(workspace_id)
-            expression = f"(() => {{ vivaldi.menubar.onActivated.dispatch({window_id}, {json.dumps(command)}, ''); return {{dispatched:true}}; }})()"
+            expression = SWITCH_WORKSPACE.replace(
+                "__WORKSPACE_ID__", json.dumps(parameter)
+            ).replace("__WINDOW_ID__", str(window_id))
             try:
-                return await self.evaluate(expression)
+                result = await self.evaluate(expression)
             finally:
                 self.invalidate()
+            if isinstance(result, dict) and result.keys() == {"dispatched"}:
+                if result["dispatched"] is True:
+                    return result
+            rejection = result.get("rejected") if isinstance(result, dict) else None
+            if isinstance(rejection, str) and rejection in SWITCH_REJECTIONS:
+                code, message = SWITCH_REJECTIONS[rejection]
+                raise ControlError(code, message, workspace_id=parameter, window_id=window_id)
+            raise ControlError("unsupported_result", "Unexpected workspace switch result.")
