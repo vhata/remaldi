@@ -497,12 +497,48 @@ have to reapply them after each reconnection (Unverified).
 
 ### Events
 
-Remaldi currently listens to `chrome.tabs` and `chrome.windows` events. Other
-listenable sources include `vivaldi.prefs.onChanged`,
-`vivaldi.tabsPrivate.onExtDataChanged`/`onKeyboardShortcut`/`onMouseGesture`/
+Remaldi currently listens to `chrome.tabs` and `chrome.windows` events,
+`vivaldi.prefs.onChanged` (filtered to `vivaldi.workspaces.list`) and
+`vivaldi.tabsPrivate.onExtDataChanged`.
+
+`vivaldi.prefs.onChanged` listeners receive `(path, {value, defaultValue, store})`,
+where `path` is the full dotted preference name (Static, read from 8.2.4133.84).
+`main.html` loads `background-common-bundle.js` and `bundle.js`. The only
+`prefs.onChanged` listener in either is Vivaldi's preference cache in
+`background-common-bundle.js` (`feed-bundle.js` carries a copy of it):
+
+```bash
+plutil -extract CFBundleShortVersionString raw /Applications/Vivaldi.app/Contents/Info.plist
+grep -oE '<script[^>]*>' "$VIVALDI_RES/main.html"
+for f in "$VIVALDI_RES"/*.js; do printf '%s ' "${f##*/}"; grep -o 'prefs\.onChanged' "$f" | wc -l; done
+grep -oE '_attachListeners\(\)\{[^}]{0,80}\}' "$VIVALDI_RES/background-common-bundle.js"
+grep -oE '_prefsListener\(e,t\)\{[^}]*\}' "$VIVALDI_RES/background-common-bundle.js"
+grep -oE '_updatePref\(e,t,n\)\{.{0,60}' "$VIVALDI_RES/background-common-bundle.js"
+grep -oE 'loadPromise=async\(\)=>\{this\._attachListeners\(\).{0,240}' "$VIVALDI_RES/background-common-bundle.js"
+grep -oE 'kWorkspacesList:\(\)=>[A-Za-z]+|[A-Za-z]+="vivaldi\.workspaces\.list"' "$VIVALDI_RES/background-common-bundle.js"
+```
+
+The bundles are minified onto very few lines, so count matches with `grep -o`
+rather than `grep -c`, which counts lines. On 8.2 the loop prints 1 for
+`background-common-bundle.js` and `feed-bundle.js` and 0 for every other bundle,
+including `bundle.js`. The remaining commands return:
+
+```js
+_attachListeners(){i.Z.prefs.onChanged.addListener(((e,t)=>this._prefsListener(e,t)))}
+_prefsListener(e,t){this._isLoaded&&this._updatePref(e,t,!0)}
+_updatePref(e,t,n){const{value:a,defaultValue:r,store:i}=t,s=this._prefsCacheStore.get(e);...
+loadPromise=async()=>{...const e=Object.values(a),t=await i.Z.prefs.getForCache(e)...this._updatePref(n,r)...
+```
+
+The cache is keyed by the same path constants it loads with `getForCache`, such
+as `kWorkspacesList` = `"vivaldi.workspaces.list"`, so the first argument is the
+exact path. That event has still not been observed firing.
+
+Other listenable sources include `vivaldi.tabsPrivate.onKeyboardShortcut`/`onMouseGesture`/
 `onMediaStateChanged`, `vivaldi.windowPrivate.onStateChanged`,
 `vivaldi.sessionsPrivate.onChanged`, `chrome.downloads.onChanged`, and
-DevTools `Target.*` events. None of these were observed firing during the probe.
+DevTools `Target.*` events. None of the Vivaldi or DevTools sources named here
+were observed firing during the probe.
 
 ## What not to wrap
 
@@ -537,10 +573,12 @@ Remaldi's private socket does not reduce that exposure.
 1. Record the new version from `/json/version`.
 2. Re-run Step 3 and diff against Appendices A and B.
 3. Re-run the `commands.txt`, `registered.txt` and `default-bound.txt` commands and diff against Appendix C.
-4. Re-run the dispatch and workspace greps. If the minified names changed,
-   search for the unminified anchors instead: `menubar.onActivated.addListener`,
-   `executeLocalAction`, `JS_LOCAL_`, `"COMMAND_WORKSPACE_SWITCH_2"`,
-   `activateWorkspaceByIndex` and `WORKSPACES_INIT`.
+4. Re-run the dispatch, workspace and `prefs.onChanged` greps. If the minified
+   names changed, search for the unminified anchors instead:
+   `menubar.onActivated.addListener`, `executeLocalAction`, `JS_LOCAL_`,
+   `"COMMAND_WORKSPACE_SWITCH_2"`, `activateWorkspaceByIndex`, `WORKSPACES_INIT`,
+   `prefs.onChanged.addListener` and `_updatePref`. If the listener's arguments
+   changed, Remaldi's workspace preference filter in `EVENT_HOOKS` must follow.
 5. Update this guide's version line and any changed findings in the same PR.
 
 ## Appendix A: `vivaldi.*` namespaces in the UI target

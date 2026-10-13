@@ -31,7 +31,10 @@ errors go to stderr and return a nonzero exit status.
 
 `workspace switch` takes a Vivaldi internal workspace ID, a nonnegative decimal
 number, not a list position. The IDs are the `id` fields of Vivaldi's
-`vivaldi.workspaces.list` preference; this prints them without names:
+`vivaldi.workspaces.list` preference. `state` lists them with their names in
+`workspaces`; this prints the IDs alone, without names, and also works when
+`state` reports `workspaces: null` because some entries fail its checks (for
+example duplicate IDs or a name that is not text):
 
 ```bash
 remaldi evaluate "new Promise(r => vivaldi.prefs.get('vivaldi.workspaces.list', p => r(p.value.map(w => w.id))))" --await-promise --return-by-value
@@ -57,12 +60,21 @@ cannot fix this by reconnecting. The daemon remains alive while unavailable.
 
 ## State and extension points
 
-`state` returns windows, their tabs, workspaces where supported, and capabilities.
-Snapshots expire after five seconds; `state --refresh` forces recollection.
-Supported tab, window, and workspace events invalidate snapshots. Reconnection
-also invalidates them. Vivaldi UI APIs are internal and version dependent;
-unsupported workspace listing is reported with `workspaces: null` and a false
-capability. Other evaluation failures are explicit errors.
+`state` returns windows, their tabs, workspaces, and capabilities. Workspaces are
+read from Vivaldi's `vivaldi.workspaces.list` preference and listed as `{id, name,
+emoji}` (`emoji` is null when unset or empty). Each tab has a `workspace_id` taken
+from its `vivExtData`, or null for tabs in no workspace, web-panel tabs and
+unreadable tab data. When the preference is unavailable or has an unexpected
+shape, the snapshot reports `workspaces: null` and a false `workspaces` capability
+instead of failing. A read-only check against Vivaldi 8.2.4133.84 on 2026-10-12
+confirmed the workspace listing and tab membership.
+
+Snapshots expire after five seconds; `state --refresh` forces recollection. Tab
+and window events, changes to the workspace preference, and tab data changes
+invalidate snapshots where Vivaldi delivers them; the preference and tab data
+events have not been observed firing, so the expiry still bounds staleness.
+Reconnection also invalidates snapshots. Vivaldi UI APIs are internal and version
+dependent; other evaluation failures are explicit errors.
 
 `raw METHOD --params '{...}' --target TARGET_ID` sends any DevTools request to an
 explicit discovered target. Without `--target`, it uses the Vivaldi UI target.

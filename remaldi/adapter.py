@@ -8,16 +8,24 @@ from typing import Any, Protocol
 from .errors import ControlError
 from .protocol import JsonObject
 
+MAX_SAFE_INTEGER = 2**53 - 1
+
+# The browser side only collects raw values; normalize_snapshot shapes and validates them.
 SNAPSHOT = """(async () => {
  const windows = await new Promise((resolve, reject) => chrome.windows.getAll({populate:true}, value => {
    if (chrome.runtime.lastError) reject(new Error(chrome.runtime.lastError.message)); else resolve(value);
  }));
- const workspacesSupported = typeof vivaldi !== 'undefined' && typeof vivaldi.workspaces?.getAll === 'function';
  const switchSupported = typeof vivaldi !== 'undefined' && typeof vivaldi.menubar?.onActivated?.dispatch === 'function';
- const workspaces = workspacesSupported ? await new Promise((resolve, reject) => vivaldi.workspaces.getAll(value => {
-   if (chrome.runtime.lastError) reject(new Error(chrome.runtime.lastError.message)); else resolve(value);
- })) : null;
- return {windows, workspaces, capabilities:{windows:true, tabs:true, workspaces:workspacesSupported, workspace_switch:switchSupported}};
+ const prefsSupported = typeof vivaldi !== 'undefined' && typeof vivaldi.prefs?.get === 'function';
+ const workspacePreference = prefsSupported ? await new Promise(resolve => {
+   try {
+     vivaldi.prefs.get('vivaldi.workspaces.list', value => {
+       const error = chrome.runtime.lastError;
+       resolve(error ? {error:String(error.message ?? error)} : {result:value ?? null});
+     });
+   } catch (error) { resolve({error:String(error?.message ?? error)}); }
+ }) : null;
+ return {windows, workspace_preference:workspacePreference, capabilities:{windows:true, tabs:true, workspace_switch:switchSupported}};
 })()"""
 
 # Checks and dispatch run in one evaluation, so the workspace list and window
@@ -81,6 +89,87 @@ def workspace_parameter(workspace_id: object) -> str:
     return str(value)
 
 
+def _safe_id(value: object) -> int | None:
+    """Return a nonnegative JavaScript safe integer, or None for anything else."""
+    if isinstance(value, int) and not isinstance(value, bool) and 0 <= value <= MAX_SAFE_INTEGER:
+        return value
+    return None
+
+
+def _workspaces(reading: object) -> list[JsonObject] | None:
+    """Validate the workspace preference reading; None unless the whole list is well formed."""
+    if not isinstance(reading, dict) or "error" in reading:
+        return None
+    preference = reading.get("result")
+    if not isinstance(preference, dict) or not isinstance(preference.get("value"), list):
+        return None
+    workspaces: list[JsonObject] = []
+    seen: set[int] = set()
+    for item in preference["value"]:
+        if not isinstance(item, dict):
+            return None
+        identifier = _safe_id(item.get("id"))
+        name, emoji = item.get("name"), item.get("emoji")
+        if (
+            identifier is None
+            or identifier in seen
+            or not isinstance(name, str)
+            or not (emoji is None or isinstance(emoji, str))
+        ):
+            return None
+        seen.add(identifier)
+        # An empty emoji means none, so clients see a single "no emoji" value.
+        workspaces.append({"id": identifier, "name": name, "emoji": emoji or None})
+    return workspaces
+
+
+def _tab_workspace(tab: JsonObject) -> int | None:
+    """Read a tab's workspace ID from its vivExtData JSON; web-panel tabs have none."""
+    data = tab.get("vivExtData")
+    if not isinstance(data, str):
+        return None
+    try:
+        parsed = json.loads(data)
+    except (ValueError, RecursionError):
+        return None
+    if not isinstance(parsed, dict) or parsed.get("panelId") is not None:
+        return None
+    identifier = parsed.get("workspaceId")
+    # Vivaldi writes these IDs in JSON exponent form (1.234567890123e+12), which
+    # json.loads parses as a float; accept integral floats in the safe range.
+    # is_integer() is also false for NaN and infinities.
+    if isinstance(identifier, float):
+        if not identifier.is_integer():
+            return None
+        identifier = int(identifier)
+    return _safe_id(identifier)
+
+
+def _window(window: object) -> object:
+    if not isinstance(window, dict) or not isinstance(window.get("tabs"), list):
+        return window
+    tabs = [
+        {**tab, "workspace_id": _tab_workspace(tab)} if isinstance(tab, dict) else tab
+        for tab in window["tabs"]
+    ]
+    return {**window, "tabs": tabs}
+
+
+def normalize_snapshot(raw: JsonObject) -> JsonObject:
+    """Shape the raw browser reading into the reported state.
+
+    A missing, failed or malformed workspace preference reports ``workspaces: null``
+    with the capability false rather than failing the snapshot.
+    """
+    state = {key: value for key, value in raw.items() if key != "workspace_preference"}
+    workspaces = _workspaces(raw.get("workspace_preference"))
+    if isinstance(raw.get("windows"), list):
+        state["windows"] = [_window(window) for window in raw["windows"]]
+    state["workspaces"] = workspaces
+    state["capabilities"] = {**raw["capabilities"], "workspaces": workspaces is not None}
+    return state
+
+
 class Controller(Protocol):
     generation: int
 
@@ -136,7 +225,7 @@ class VivaldiAdapter:
                 value = await self.evaluate(SNAPSHOT)
                 if not isinstance(value, dict) or not isinstance(value.get("capabilities"), dict):
                     raise ControlError("unsupported_result", "Unexpected browser state shape.")
-                self.cached = value
+                self.cached = normalize_snapshot(value)
                 self.cached_revision = revision
                 self.generation = generation
                 self.updated = time.monotonic()

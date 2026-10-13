@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock, patch
 from websockets.asyncio.server import serve
 
 from remaldi.adapter import VivaldiAdapter
-from remaldi.browser import UI_SUFFIX, Browser
+from remaldi.browser import EVENT_HOOKS, UI_SUFFIX, Browser
 from remaldi.errors import ControlError
 
 
@@ -162,3 +162,23 @@ class BrowserTests(unittest.IsolatedAsyncioTestCase):
         adapter.updated -= 6
         await adapter.snapshot()
         self.assertEqual(adapter.evaluate.await_count, 2)
+
+    async def test_event_hooks_watch_workspace_preference_and_tab_data(self):
+        with patch.object(self.browser, "_discover", return_value=[self.target("first")]):
+            await self.browser.refresh()
+        expression = next(
+            request["params"]["expression"]
+            for request in self.received
+            if request["method"] == "Runtime.evaluate"
+        )
+        self.assertEqual(expression, EVENT_HOOKS)
+        self.assertIn("[viv?.prefs, ['onChanged'], prefChanged]", expression)
+        self.assertIn("[viv?.tabsPrivate, ['onExtDataChanged'], notify]", expression)
+        self.assertIn("path => { if (path === 'vivaldi.workspaces.list') notify(); }", expression)
+        self.assertNotIn("vivaldi.workspaces,", expression)
+        recorded = expression.index("hooks.installed.push([event, listener]);")
+        self.assertLess(expression.index("globalThis[key] = hooks;"), recorded)
+        self.assertLess(
+            recorded,
+            expression.index("try { event.addListener(listener); hooks.added += 1; } catch {}"),
+        )

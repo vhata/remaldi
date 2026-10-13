@@ -11,21 +11,40 @@ from .transport import CDPConnection
 UI_SUFFIX = "mpognobbkildjkofajifpdfhcoklimli/main.html"
 EVENT_SETUP_TIMEOUT = 2
 
+# Hooks survive in the UI document across service restarts, so a changed hook set bumps
+# the version and replaces listeners installed by an earlier one. Each listener is
+# recorded before it is added and added in its own try, so one failing addListener
+# neither stops the rest nor leaves unrecorded listeners behind; the result counts the
+# listeners actually added.
+# vivaldi.prefs.onChanged listeners receive (path, {value, defaultValue, store}) with the
+# full dotted preference path; this is how Vivaldi 8.2's own preference cache reads it
+# (static reading, see docs/VIVALDI_CONTROL_SURFACE.md "Events").
 EVENT_HOOKS = """(() => {
  const key = '__remaldiEventHooks';
- if (globalThis[key]) return globalThis[key].length;
- const notify = () => { if (typeof globalThis.__remaldiChanged === 'function') globalThis.__remaldiChanged('dirty'); };
- const installed = [];
- const groups = [
-   [chrome.tabs, ['onCreated','onRemoved','onUpdated','onMoved','onActivated','onAttached','onDetached']],
-   [chrome.windows, ['onCreated','onRemoved','onFocusChanged']],
-   [typeof vivaldi === 'undefined' ? null : vivaldi.workspaces, ['onCreated','onRemoved','onChanged','onActivated']]
- ];
- for (const [api, names] of groups) for (const name of names) {
-   if (typeof api?.[name]?.addListener === 'function') { api[name].addListener(notify); installed.push([api[name], notify]); }
+ const version = 2;
+ const previous = globalThis[key];
+ if (previous?.version === version) return previous.added;
+ for (const [event, listener] of (Array.isArray(previous) ? previous : previous?.installed ?? [])) {
+   try { event.removeListener(listener); } catch {}
  }
- globalThis[key] = installed;
- return installed.length;
+ const notify = () => { if (typeof globalThis.__remaldiChanged === 'function') globalThis.__remaldiChanged('dirty'); };
+ const prefChanged = path => { if (path === 'vivaldi.workspaces.list') notify(); };
+ const viv = typeof vivaldi === 'undefined' ? null : vivaldi;
+ const hooks = {version, installed:[], added:0};
+ globalThis[key] = hooks;
+ const groups = [
+   [chrome.tabs, ['onCreated','onRemoved','onUpdated','onMoved','onActivated','onAttached','onDetached'], notify],
+   [chrome.windows, ['onCreated','onRemoved','onFocusChanged'], notify],
+   [viv?.prefs, ['onChanged'], prefChanged],
+   [viv?.tabsPrivate, ['onExtDataChanged'], notify]
+ ];
+ for (const [api, names, listener] of groups) for (const name of names) {
+   const event = api?.[name];
+   if (typeof event?.addListener !== 'function') continue;
+   hooks.installed.push([event, listener]);
+   try { event.addListener(listener); hooks.added += 1; } catch {}
+ }
+ return hooks.added;
 })()"""
 
 
