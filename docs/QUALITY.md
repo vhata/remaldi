@@ -57,11 +57,17 @@ from `typos.toml`, `.editorconfig` (which shfmt reads) and
   over the workflows, and typos over the tree.
 - Whitespace errors, conflict markers, TOML and YAML syntax, and shebangs that
   agree with the executable bit.
-- The secret audit of publishable files and reachable Git history.
+- The secret audit of publishable files and reachable Git history. Blobs that
+  scanned clean are cached under `remaldi-secret-audit/` in the shared Git
+  directory, keyed by detect-secrets version and settings, so later runs scan
+  only new content; delete that directory to force a full scan. Blobs with
+  findings are never cached, and CI always starts without a cache.
 - pytest with branch coverage of `remaldi` and an 85% floor. pytest fails when
   it collects no tests, runs in strict mode, turns warnings into errors and
-  times a test out after 60 seconds. The tests are `unittest` classes, which
-  pytest runs unchanged.
+  times a test out after 60 seconds. The gate spreads the tests over up to four
+  pytest-xdist workers; a plain `uv run pytest` runs them serially, which
+  debugging with `-s` or `--pdb` needs. The tests are `unittest` classes,
+  which pytest runs unchanged.
 - Strict queue validation and Markdown links (the vendored
   `docket/scripts/check-queues.sh --strict` and `docket/scripts/check-links.sh`).
 

@@ -70,8 +70,9 @@ files . -- check-shebang-scripts-are-executable
 
 run python scripts/audit-secrets.py
 
-# pytest exits nonzero when it collects no tests.
-run pytest --cov
+# pytest exits nonzero when it collects no tests. More than four workers costs
+# more in start-up than the suite gains.
+run pytest --cov --numprocesses=auto --maxprocesses=4
 
 bash docket/scripts/check-queues.sh --strict
 bash docket/scripts/check-links.sh

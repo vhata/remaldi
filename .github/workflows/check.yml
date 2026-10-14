@@ -61,4 +61,4 @@ jobs:
           version: ${{ env.UV_VERSION }}
           enable-cache: true
           python-version: ${{ matrix.python }}
-      - run: uv run --locked pytest
+      - run: uv run --locked pytest --numprocesses=auto --maxprocesses=4
