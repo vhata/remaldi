@@ -3,6 +3,11 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
+shell_scripts=()
+while IFS= read -r -d '' path; do
+  shell_scripts+=("$path")
+done < <(git ls-files -z -- 'scripts/*.sh')
+
 uv run --locked ruff check --fix .
 uv run --locked ruff format .
-git ls-files -z -- 'scripts/*.sh' | xargs -0 uv run --locked shfmt --write
+uv run --locked shfmt --write "${shell_scripts[@]}"
