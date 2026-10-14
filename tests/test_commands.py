@@ -199,6 +199,8 @@ class RunCommandTests(unittest.IsolatedAsyncioTestCase):
             ("JS_LOCAL_ACTIVATE_TAB", "0042", "42"),
             ("JS_LOCAL_ACTIVATE_WINDOW", "9", "9"),
             ("PERIODIC_RELOAD", "5", "5"),
+            ("PERIODIC_RELOAD", "05", "5"),
+            ("JS_LOCAL_ACTIVATE_TAB", "0", "0"),
             ("PERIODIC_RELOAD_DISABLE", "all", "all"),
             ("COMMAND_OPEN_LINK", "https://example.com/a?b='c'", "https://example.com/a?b='c'"),
             ("JS_LOCAL_TOGGLE_WEBPANEL", 'Web"Panel\\\n</script>', 'Web"Panel\\\n</script>'),
@@ -246,6 +248,8 @@ class RunCommandTests(unittest.IsolatedAsyncioTestCase):
             ("COMMAND_OPEN_LINK", None),
             ("COMMAND_OPEN_LINK", "x" * 8193),
             ("JS_LOCAL_OPEN_SESSION", "session"),
+            ("PERIODIC_RELOAD", "0"),
+            ("PERIODIC_RELOAD", "000"),
             ("PERIODIC_RELOAD_DISABLE", ["all"]),
         ]
         for name, parameter in cases:

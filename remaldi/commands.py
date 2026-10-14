@@ -372,6 +372,7 @@ class LocalAction:
 
     parameter: str | None
     integer: bool = False
+    positive: bool = False
 
 
 # Actions handled by executeLocalAction before the registry. Every allowed one
@@ -391,7 +392,8 @@ LOCAL_ACTIONS = {
     "JS_LOCAL_REOPEN_CLOSED_WINDOW": LocalAction("closed window session ID"),
     "JS_LOCAL_RESTORE_WEBPANEL": LocalAction("web panel ID"),
     "JS_LOCAL_TOGGLE_WEBPANEL": LocalAction("web panel ID"),
-    "PERIODIC_RELOAD": LocalAction("interval in minutes", integer=True),
+    # The interval becomes the reload alarm's period; zero is not a period.
+    "PERIODIC_RELOAD": LocalAction("interval in minutes", integer=True, positive=True),
     "PERIODIC_RELOAD_DISABLE": LocalAction("'all' or any other text"),
 }
 

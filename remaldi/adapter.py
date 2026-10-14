@@ -191,10 +191,11 @@ def command_parameter(name: object, parameter: object) -> tuple[str, str]:
         )
     if action.integer:
         canonical = _decimal(parameter)
-        if canonical is None:
+        if canonical is None or (action.positive and canonical == "0"):
+            kind = "positive" if action.positive else "nonnegative"
             raise ControlError(
                 "invalid_parameters",
-                f"{name} requires a nonnegative decimal {action.parameter}.",
+                f"{name} requires a {kind} decimal {action.parameter}.",
                 name=name,
             )
         parameter = canonical

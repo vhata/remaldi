@@ -77,8 +77,8 @@ with `unknown_command`. User-defined command chains are never dispatched,
 because their steps could run any command, including the denied ones.
 
 Local actions such as `JS_LOCAL_ACTIVATE_TAB`, `COMMAND_OPEN_LINK` and
-`PERIODIC_RELOAD` need `--parameter TEXT`; IDs and intervals must be
-nonnegative decimal numbers. Registry commands take no parameter, and passing
+`PERIODIC_RELOAD` need `--parameter TEXT`; IDs must be nonnegative decimal
+numbers and the `PERIODIC_RELOAD` interval a positive one. Registry commands take no parameter, and passing
 one fails with `invalid_parameters`. `--window-id` and the focused-window
 default work as for `workspace switch`. In the same browser evaluation as the
 dispatch, Remaldi refuses a name that a user-defined chain also uses
