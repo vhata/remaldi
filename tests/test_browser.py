@@ -97,15 +97,70 @@ class BrowserTests(unittest.IsolatedAsyncioTestCase):
             await self.browser.request("Browser.getVersion")
         self.assertEqual(caught.exception.code, "ui_target_unavailable")
 
-    async def test_unclassified_ui_target_is_skipped_and_probed_again(self):
-        # The default handler answers the probe with a non-boolean value.
-        self.probe_values = {"regular": False}
-        targets = [self.target("unknown", "unknown"), self.target("normal", "regular")]
+    async def test_probe_connections_are_closed(self):
+        self.probe_values = {"incognito": True, "regular": False}
+        targets = [self.target("private", "incognito"), self.target("normal", "regular")]
         with patch.object(self.browser, "_discover", return_value=targets):
             await self.browser.refresh()
+        for _ in range(50):
+            open_paths = [
+                socket.request.path.strip("/")
+                for socket in self.sockets
+                if socket.state.name == "OPEN"
+            ]
+            if open_paths == ["regular"]:
+                break
+            await asyncio.sleep(0.01)
+        self.assertEqual(open_paths, ["regular"])
+
+    async def test_unclassified_ui_target_is_retried_after_a_delay(self):
+        # The default handler answers the probe with a non-boolean value.
+        self.probe_values = {"regular": False}
+        unknown = self.target("unknown", "unknown")
+        broken = {**self.target("broken"), "webSocketDebuggerUrl": "ws://127.0.0.1:1"}
+        normal = self.target("normal", "regular")
+        with patch.object(self.browser, "_discover", return_value=[unknown, broken]):
+            await self.browser.refresh()
+            self.assertEqual(self.browser.state, "ui_target_unavailable")
+            await self.browser.refresh()
+        self.assertEqual(self.methods("unknown"), ["Runtime.evaluate"])
+        for key in self.browser.probe_retry:
+            self.browser.probe_retry[key] = 0
+        with patch.object(self.browser, "_discover", return_value=[unknown, broken, normal]):
+            await self.browser.refresh()
+            # Once a regular target is selected, unclassified ones are not probed again.
+            for key in self.browser.probe_retry:
+                self.browser.probe_retry[key] = 0
             await self.browser.refresh()
         self.assertEqual(self.browser.ui_target_id, "normal")
         self.assertEqual(self.methods("unknown"), ["Runtime.evaluate", "Runtime.evaluate"])
+        self.assertEqual(list(self.browser.connections), ["normal"])
+
+    async def test_switching_ui_target_invalidates_and_hooks_existing_connection(self):
+        self.probe_values = {"incognito": True, "regular": False}
+        adapter = VivaldiAdapter(self.browser)
+        self.browser.on_change = adapter.invalidate
+        private, normal = self.target("private", "incognito"), self.target("normal", "regular")
+        with patch.object(self.browser, "_discover", return_value=[private]):
+            await self.browser.refresh()
+        self.assertEqual(self.browser.ui_target_id, "private")
+        # A raw request can reach a listed target before it is selected, for example
+        # while its probe is waiting to be retried.
+        self.browser.targets = [private, normal]
+        with patch.object(self.browser, "_discover", return_value=[private, normal]):
+            await self.browser.request("Browser.getVersion", target="normal")
+            self.assertEqual(self.methods("regular"), ["Browser.getVersion"])
+            unhooked = self.browser.connections["normal"]
+            revision = adapter.revision
+            await self.browser.refresh()
+        self.assertEqual(self.browser.ui_target_id, "normal")
+        self.assertGreater(adapter.revision, revision)
+        self.assertFalse(unhooked.connected)
+        self.assertTrue(self.browser.connections["normal"].connected)
+        self.assertEqual(
+            self.methods("regular")[-3:],
+            ["Runtime.enable", "Runtime.addBinding", "Runtime.evaluate"],
+        )
 
     async def test_refresh_reuses_connection_then_replaces_disappeared_target(self):
         with patch.object(self.browser, "_discover", return_value=[self.target("first")]):

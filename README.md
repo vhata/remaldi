@@ -50,9 +50,11 @@ returns:
 remaldi state | jq '.windows[] | {id, focused, state}'
 ```
 
-Private windows are not listed and cannot be selected (see
-[State and extension points](#state-and-extension-points)). In the same browser evaluation as the switch, Remaldi first checks
-that the ID is in that preference and that the window exists and is not minimized
+With a Private window open, Private windows are normally left out and cannot be
+selected (see [State and extension points](#state-and-extension-points)).
+
+In the same browser evaluation as the switch, Remaldi first checks that the ID is
+in `vivaldi.workspaces.list` and that the window exists and is not minimized
 (Vivaldi would create a tab tagged with an unknown ID, and a minimized window
 ignores the action). Otherwise it fails with `unknown_workspace`,
 `workspaces_unavailable`, `minimized_window` or `invalid_parameters` and dispatches
@@ -60,8 +62,8 @@ nothing. It then dispatches Vivaldi's `JS_LOCAL_ACTIVATE_WORKSPACE` action, as t
 native Window menu does. If the workspace is already active in another window,
 Vivaldi focuses that window instead of switching the selected one; Remaldi reports
 this as a normal dispatch (read from Vivaldi 8.2's code, not observed live). A
-successful result, `{"dispatched": true}`, means the action was dispatched, not that
-a visible workspace change was verified.
+successful result, `{"dispatched": true}`, means the action was dispatched, not
+that a visible workspace change was verified.
 
 `command run NAME` dispatches one of Vivaldi's own commands or local actions by
 name, as a keyboard shortcut or the native menu would: for example
@@ -104,19 +106,22 @@ cannot fix this by reconnecting. The daemon remains alive while unavailable.
 
 ## State and extension points
 
-`state` returns windows, their tabs, workspaces, and capabilities. Remaldi works
-through the regular profile's UI target, so `state` and dispatches cover that
-profile's windows only. A Private window gets an incognito UI target of its own;
-when several UI targets exist, Remaldi asks each whether it is incognito and
-uses the first that is not, and it leaves Private windows out. If none can be
-confirmed as regular, status reports `ui_target_unavailable`. Workspaces are
-read from Vivaldi's `vivaldi.workspaces.list` preference and listed as `{id, name,
-emoji}` (`emoji` is null when unset or empty). Each tab has a `workspace_id` taken
-from its `vivExtData`, or null for tabs in no workspace, web-panel tabs and
-unreadable tab data. When the preference is unavailable or has an unexpected
-shape, the snapshot reports `workspaces: null` and a false `workspaces` capability
-instead of failing. A read-only check against Vivaldi 8.2.4133.84 on 2026-10-12
-confirmed the workspace listing and tab membership.
+`state` returns windows, their tabs, workspaces, and capabilities. A Private
+window gets an incognito UI target of its own. When several UI targets exist,
+Remaldi asks each whether it is incognito and uses the first that is not, so
+`state` and dispatches cover the regular profile's windows and leave Private
+windows out; if none is confirmed regular, status reports
+`ui_target_unavailable`. A single UI target is used without asking. This check
+has not yet been observed against a live Vivaldi (see the
+[control-surface guide](docs/VIVALDI_CONTROL_SURFACE.md#step-1-find-the-debugger-targets)).
+
+Workspaces are read from Vivaldi's `vivaldi.workspaces.list` preference and listed
+as `{id, name, emoji}` (`emoji` is null when unset or empty). Each tab has a
+`workspace_id` taken from its `vivExtData`, or null for tabs in no workspace,
+web-panel tabs and unreadable tab data. When the preference is unavailable or has
+an unexpected shape, the snapshot reports `workspaces: null` and a false
+`workspaces` capability instead of failing. A read-only check against Vivaldi
+8.2.4133.84 on 2026-10-12 confirmed the workspace listing and tab membership.
 
 Snapshots expire after five seconds; `state --refresh` forces recollection. Tab
 and window events, changes to the workspace preference, and tab data changes

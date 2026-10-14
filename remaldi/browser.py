@@ -1,6 +1,7 @@
 import asyncio
 import contextlib
 import json
+import time
 import urllib.error
 import urllib.request
 from collections.abc import Callable
@@ -16,6 +17,7 @@ EVENT_SETUP_TIMEOUT = 2
 # stable, so a candidate is classified before it is chosen.
 INCOGNITO_PROBE = "chrome.extension.inIncognitoContext"
 INCOGNITO_PROBE_TIMEOUT = 2
+INCOGNITO_PROBE_RETRY = 30
 
 # Hooks survive in the UI document across service restarts, so a changed hook set bumps
 # the version and replaces listeners installed by an earlier one. Each listener is
@@ -67,6 +69,7 @@ class Browser:
         self.event_support = "unavailable"
         self.ui_target_id: str | None = None
         self.incognito: dict[tuple[str, str], bool] = {}
+        self.probe_retry: dict[tuple[str, str], float] = {}
 
     def _discover(self) -> list[JsonObject]:
         # Local discovery must not inherit HTTP proxy configuration.
@@ -97,10 +100,20 @@ class Browser:
                 ui = await self._select_ui(targets)
                 if ui is None:
                     self.ui_target_id = None
+                    self.event_support = "unavailable"
                     self.state = "ui_target_unavailable"
                     self.detail = "Debugger responds, but Vivaldi UI target is unavailable."
                     return
-                self.ui_target_id = ui["id"]
+                if ui["id"] != self.ui_target_id:
+                    # A switch changes which windows state describes. An existing
+                    # connection to the new target (from raw --target) has no hooks,
+                    # so it is replaced by one that installs them.
+                    self.ui_target_id = ui["id"]
+                    existing = self.connections.pop(ui["id"], None)
+                    if existing is not None:
+                        await existing.close()
+                    self.generation += 1
+                    self.on_change()
                 await self._connection(ui)
                 self.state, self.detail = "connected", "Vivaldi UI connected."
             except Exception as exc:
@@ -119,13 +132,24 @@ class Browser:
             return candidates[0] if candidates else None
         keys = {(target["id"], target.get("webSocketDebuggerUrl", "")) for target in candidates}
         self.incognito = {key: value for key, value in self.incognito.items() if key in keys}
+        self.probe_retry = {key: value for key, value in self.probe_retry.items() if key in keys}
+        # Keep the current UI target while it is listed and regular, so unclassified
+        # targets are not probed on every refresh.
+        for target in candidates:
+            key = (target["id"], target.get("webSocketDebuggerUrl", ""))
+            if target["id"] == self.ui_target_id and self.incognito.get(key) is False:
+                return target
+        now = time.monotonic()
         for target in candidates:
             key = (target["id"], target.get("webSocketDebuggerUrl", ""))
             incognito = self.incognito.get(key)
-            if incognito is None:
-                # A failed probe is not cached, so the next refresh retries it.
+            if incognito is None and self.probe_retry.get(key, 0) <= now:
+                # A failed probe is retried after a delay, so a hung target does not
+                # hold the lock on every refresh.
                 incognito = await self._probe_incognito(target)
-                if incognito is not None:
+                if incognito is None:
+                    self.probe_retry[key] = now + INCOGNITO_PROBE_RETRY
+                else:
                     self.incognito[key] = incognito
             if incognito is False:
                 return target
