@@ -209,6 +209,19 @@ class RunCommandTests(unittest.IsolatedAsyncioTestCase):
                 self.assertIn(f"const name = {json.dumps(name)};", expression)
                 self.assertIn(f"const parameter = {json.dumps(sent)};", expression)
 
+    async def test_placeholder_text_in_a_parameter_is_sent_verbatim(self):
+        for parameter in [
+            "https://example.com/__WINDOW_ID__",
+            "https://example.com/__NAME__/__PARAMETER__",
+        ]:
+            with self.subTest(parameter=parameter):
+                adapter, controller = self.adapter()
+                await adapter.run_command("COMMAND_OPEN_LINK", parameter=parameter)
+                [expression] = self.dispatches(controller)
+                self.assertIn(f"const parameter = {json.dumps(parameter)};", expression)
+                self.assertIn("const windowId = 7;", expression)
+                self.assertIn('const name = "COMMAND_OPEN_LINK";', expression)
+
     async def test_parameter_applies_only_to_local_actions(self):
         for parameter in ["1", ""]:
             with self.subTest(parameter=parameter):

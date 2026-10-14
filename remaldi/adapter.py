@@ -2,6 +2,7 @@
 
 import asyncio
 import json
+import re
 import time
 from typing import Any, Protocol
 
@@ -128,6 +129,12 @@ def workspace_parameter(workspace_id: object) -> str:
     if not 0 <= value <= MAX_WORKSPACE_ID:
         raise ControlError("invalid_parameters", "workspace_id must be a nonnegative decimal ID.")
     return str(value)
+
+
+def _fill(template: str, **values: str) -> str:
+    """Substitute __KEY__ placeholders in one pass, so inserted text is never rescanned."""
+    pattern = "|".join(f"__{key}__" for key in values)
+    return re.sub(pattern, lambda match: values[match.group(0)[2:-2]], template)
 
 
 def _decimal(value: str) -> str | None:
@@ -347,9 +354,11 @@ class VivaldiAdapter:
                     "This Vivaldi UI does not expose workspace switching.",
                 )
             window_id = _select_window(state, window_id)
-            expression = SWITCH_WORKSPACE.replace(
-                "__WORKSPACE_ID__", json.dumps(parameter)
-            ).replace("__WINDOW_ID__", str(window_id))
+            expression = _fill(
+                SWITCH_WORKSPACE,
+                WORKSPACE_ID=json.dumps(parameter),
+                WINDOW_ID=str(window_id),
+            )
             return await self._dispatch(
                 expression,
                 SWITCH_REJECTIONS,
@@ -370,10 +379,11 @@ class VivaldiAdapter:
                     "This Vivaldi UI does not expose command dispatch.",
                 )
             window_id = _select_window(state, window_id)
-            expression = (
-                RUN_COMMAND.replace("__NAME__", json.dumps(name))
-                .replace("__PARAMETER__", json.dumps(parameter))
-                .replace("__WINDOW_ID__", str(window_id))
+            expression = _fill(
+                RUN_COMMAND,
+                NAME=json.dumps(name),
+                PARAMETER=json.dumps(parameter),
+                WINDOW_ID=str(window_id),
             )
             return await self._dispatch(
                 expression,
