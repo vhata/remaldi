@@ -38,6 +38,19 @@ before calling ready work available. Priorities were set in triage on 2026-10-11
     windows; how to remove them; and how several windows map onto `window.html`
     targets (one window was observed).
 
+### Unprioritized
+
+- [ACCEPTANCE] `verify-live-command-dispatch` — **Validate a named command dispatch in a running Vivaldi browser.** `command run` success confirms dispatch only, and its tests read the evaluated JavaScript as text without running it.
+  - Source: `dispatch-named-commands` PR, 2026-10-13; the live toggle in
+    that entry's acceptance was reported as a limitation.
+  - Starting point: `command run` in README; `RUN_COMMAND` in `adapter.py`;
+    the live scenario in docs/QUALITY.md.
+  - Blocked by: an already-running debug-enabled Vivaldi and explicit
+    authorization for the selected visible change.
+  - Acceptance: dispatch `COMMAND_MAIN_TOGGLE_TAB_BAR` twice, observe the tab bar
+    hide and return, and report version, capabilities and limits without
+    private data.
+
 ## Needs proof of concept
 
 ### P2 Normal
