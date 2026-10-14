@@ -320,7 +320,7 @@ class VivaldiAdapter:
             raise ControlError("unsupported_result", "Browser did not return a JSON value.")
         return result["value"]
 
-    async def snapshot(self, refresh: bool = False) -> JsonObject:
+    async def snapshot(self, *, refresh: bool = False) -> JsonObject:
         sequence = self.refresh_sequence
         async with self.refresh_lock:
             generation = self.controller.generation
@@ -407,9 +407,12 @@ class VivaldiAdapter:
             result = await self.evaluate(expression)
         finally:
             self.invalidate()
-        if isinstance(result, dict) and result.keys() == {"dispatched"}:
-            if result["dispatched"] is True:
-                return result
+        if (
+            isinstance(result, dict)
+            and result.keys() == {"dispatched"}
+            and result["dispatched"] is True
+        ):
+            return result
         rejection = result.get("rejected") if isinstance(result, dict) else None
         if isinstance(rejection, str) and rejection in rejections:
             code, message = rejections[rejection]

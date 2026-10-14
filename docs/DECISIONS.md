@@ -1,5 +1,31 @@
 # Decisions
 
+## 2026-10-13: Lock the toolchain with uv and widen the gates
+
+uv replaces pip, setuptools and the hand-picked interpreter: `uv.lock` pins
+every runtime and development dependency, `.python-version` pins 3.12, and
+`uv_build` builds the package (`module-root = ""` keeps the flat layout). The
+tools are a locked dependency group and every hook runs them with
+`uv run --locked`, which removes the second set of pins the hook configuration
+used to carry and makes a stale lockfile a gate failure. It supersedes the
+2026-10-04 choice below to keep the existing tooling and the user's shared
+virtualenv. The cost is that contributors need uv installed, and the Git hooks
+start pre-commit from whichever checkout last ran `scripts/setup.sh`.
+
+The gate grows with mature tools where the project had none: basedpyright
+beside strict mypy, pytest with a coverage floor in place of the unittest
+runner (the tests stay `unittest` classes), Ruff with every rule selected,
+shellcheck and shfmt for the scripts, actionlint and zizmor for the workflows,
+typos, and pip-audit on the daily validation. Ruff's ignore list records why
+each excluded rule does not fit; new rules arrive only with a deliberate Ruff
+upgrade, since the version is pinned. Running two type checkers costs a second
+pass, but they catch different mistakes and basedpyright matches what most
+editors report. basedpyright runs in standard mode because strict mode reports
+every decoded JSON value as partly unknown; ty (behind `uv check`) is left out
+while it is pre-1.0, and `uv audit` while it is experimental. Vulnerability
+auditing needs the network and its result changes without a commit, so it
+runs daily rather than in the shared gate.
+
 ## 2026-10-13: Use the regular profile's UI target and leave out Private windows
 
 A Private window adds an incognito `main.html` target whose `chrome.windows`

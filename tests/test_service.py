@@ -6,23 +6,24 @@ from unittest.mock import patch
 
 from remaldi.client import exchange
 from remaldi.errors import ControlError
+from remaldi.protocol import JsonObject
 from remaldi.service import Service
 
 
 class ServiceDeadlineTests(unittest.IsolatedAsyncioTestCase):
-    async def asyncSetUp(self):
+    async def asyncSetUp(self) -> None:
         self.directory = tempfile.TemporaryDirectory(prefix="remaldi-deadline-", dir="/tmp")
         self.path = Path(self.directory.name)
         self.service = Service("http://127.0.0.1:1")
-        self.tasks = set()
+        self.tasks: set[asyncio.Task[None]] = set()
 
-        def handle(reader, writer):
+        def handle(reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
             task = asyncio.create_task(self.service.handle(reader, writer))
             self.tasks.add(task)
 
         self.server = await asyncio.start_unix_server(handle, path=self.path / "control.sock")
 
-    async def asyncTearDown(self):
+    async def asyncTearDown(self) -> None:
         self.server.close()
         await self.server.wait_closed()
         for task in self.tasks:
@@ -31,10 +32,10 @@ class ServiceDeadlineTests(unittest.IsolatedAsyncioTestCase):
         await asyncio.gather(*self.tasks, return_exceptions=True)
         self.directory.cleanup()
 
-    async def test_deadline_cancels_running_operation(self):
+    async def test_deadline_cancels_running_operation(self) -> None:
         started, cancelled = asyncio.Event(), asyncio.Event()
 
-        async def operation(params):
+        async def operation(_params: JsonObject) -> None:
             started.set()
             try:
                 await asyncio.Event().wait()
@@ -50,10 +51,10 @@ class ServiceDeadlineTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(caught.exception.code, "unknown_outcome")
         self.assertTrue(cancelled.is_set())
 
-    async def test_expired_queued_mutations_do_not_execute_after_lock_release(self):
-        executed = []
+    async def test_expired_queued_mutations_do_not_execute_after_lock_release(self) -> None:
+        executed: list[JsonObject] = []
 
-        async def mutation(params):
+        async def mutation(params: JsonObject) -> JsonObject:
             async with self.service.adapter.mutation_lock:
                 executed.append(params)
                 return {"dispatched": True}
@@ -68,7 +69,10 @@ class ServiceDeadlineTests(unittest.IsolatedAsyncioTestCase):
                     return_exceptions=True,
                 )
             self.assertTrue(all(isinstance(response, ControlError) for response in responses))
-            self.assertEqual([response.code for response in responses], ["unknown_outcome"] * 2)
+            self.assertEqual(
+                [response.code for response in responses if isinstance(response, ControlError)],
+                ["unknown_outcome"] * 2,
+            )
         finally:
             self.service.adapter.mutation_lock.release()
         await asyncio.sleep(0.02)

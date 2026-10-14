@@ -19,7 +19,7 @@ class CDPConnection:
         self.reader: asyncio.Task[None] | None = None
         self.pending: dict[int, asyncio.Future[JsonObject]] = {}
         self.sequence = 0
-        self.on_event: Callable[[JsonObject], None] = lambda event: None
+        self.on_event: Callable[[JsonObject], None] = lambda _event: None
 
     async def connect(self) -> None:
         self.socket = await connect(
@@ -42,7 +42,7 @@ class CDPConnection:
                         future.set_result(message)
                 else:
                     self.on_event(message)
-        except Exception:
+        except Exception:  # noqa: BLE001, S110 - any read failure ends the connection; pending requests fail below
             pass
         finally:
             for future in self.pending.values():

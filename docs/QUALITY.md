@@ -26,33 +26,64 @@ The invariants behind these are stated in full in
 
 ## Setup and entrypoints
 
-Use Python 3.12 for development and CI. Locally use the installed Python 3.12 environment:
+[uv](https://docs.astral.sh/uv/) manages the environment. `.python-version`
+pins Python 3.12 for development and CI; uv uses an installed 3.12 or downloads
+one. `uv.lock` pins every dependency, and the tools all come from its `dev`
+dependency group, so hooks, CI and local runs use the same versions.
 
 ```bash
-bash scripts/setup.sh
-scripts/format.sh
-REMALDI_PYTHON=/Users/jonathan.hitchcock/.venv/3.12/bin/python scripts/check.sh
-/Users/jonathan.hitchcock/.venv/3.12/bin/python -m build
+bash scripts/setup.sh                # uv sync --locked, then install the Git hooks
+scripts/format.sh                    # apply Ruff and shfmt fixes
+scripts/check.sh                     # the shared gate
+scripts/audit-dependencies.sh        # known vulnerabilities (needs network)
+uv build                             # wheel and source distribution
+uv run remaldi status                # run the client from the checkout
 ```
 
-`format.sh` fixes Ruff lint and formatting. `check.sh` checks formatting, Ruff,
-strict mypy for application modules, secrets in publishable files/reachable Git
-history, the nonempty unittest suite, strict queue validation, and Markdown links
-(the vendored `docket/scripts/check-queues.sh --strict` and
-`docket/scripts/check-links.sh`). Tests are linted/formatted but not strict-typed.
-Standalone scripts use `python3` from the active environment; `REMALDI_PYTHON`
-selects another interpreter. CI shares the gate on macOS/Linux and builds wheel
-and source distributions with complete Git history available for the secret scan.
+Run tools as `uv run --locked <tool>`; `--locked` fails when `uv.lock` no longer
+matches `pyproject.toml` instead of silently re-resolving. Change dependencies
+with `uv add`, `uv add --dev` or `uv lock --upgrade-package <name>` and commit the
+lockfile with the change. Tool configuration lives in `pyproject.toml`, apart
+from `typos.toml`, `.editorconfig` (which shfmt reads) and
+`.pre-commit-config.yaml`.
 
-Git hooks create/reuse a managed Python 3.12 environment with required tools.
-Python 3.12 must be installed, but commits/pushes do not require an activated
-virtualenv. Initial runs download dependencies. Commit hooks lint/format changed
-Python files, audit secrets, and validate queues/links (the `workflow-records`
-hook calls `docket/scripts/check-queues.sh --strict` and
-`docket/scripts/check-links.sh` directly); push hooks run the complete gate and
-ignore an ambient `REMALDI_PYTHON` override. Keep hook dependency pins aligned with pyproject
-dev dependencies when upgrading. Hook checks remain mandatory for pushes even
-when a scoped documentation change only needs link/content review beforehand.
+`check.sh` runs, in order:
+
+- Ruff formatting and lint. Lint selects every rule; the ignore list in
+  `pyproject.toml` gives the reason for each exclusion.
+- Strict mypy and basedpyright (standard mode) over `remaldi`, `tests` and
+  `scripts`; basedpyright also reads `bin`.
+- shfmt and shellcheck over `scripts/*.sh`, actionlint and zizmor (offline)
+  over the workflows, and typos over the tree.
+- Whitespace errors, conflict markers, TOML and YAML syntax, and shebangs that
+  agree with the executable bit.
+- The secret audit of publishable files and reachable Git history. Blobs that
+  scanned clean are cached under `remaldi-secret-audit/` in the shared Git
+  directory, keyed by detect-secrets version and settings, so later runs scan
+  only new content; delete that directory to force a full scan. Blobs with
+  findings are never cached, and CI always starts without a cache.
+- pytest with branch coverage of `remaldi` and an 85% floor. pytest fails when
+  it collects no tests, runs in strict mode, turns warnings into errors and
+  times a test out after 60 seconds. The gate spreads the tests over up to four
+  pytest-xdist workers; a plain `uv run pytest` runs them serially, which
+  debugging with `-s` or `--pdb` needs. The tests are `unittest` classes,
+  which pytest runs unchanged.
+- Strict queue validation and Markdown links (the vendored
+  `docket/scripts/check-queues.sh --strict` and `docket/scripts/check-links.sh`).
+
+`docket/` is vendored and `reference/` is historical, so neither is linted.
+
+`scripts/setup.sh` installs pre-commit and pre-push hooks. Every hook runs its
+tool through `uv run --locked`, so there are no hook pins to keep in step with
+`pyproject.toml`. Commit hooks fix lint and formatting in changed Python and
+shell files, strip trailing whitespace and add final newlines, check spelling,
+syntax, large files and the lockfile, lint workflows when they change, audit
+secrets, and validate queues and links. The push hook runs the complete gate.
+Hooks are installed in the Git directory that every worktree shares and start
+pre-commit from the checkout where `setup.sh` last ran, so run it from a
+checkout that will outlive the worktrees, such as the main one. Hook checks
+remain mandatory for pushes even when a scoped documentation change only needs
+link and content review beforehand.
 
 Use proportionate validation: documentation changes need link/content checks and
 secret audit; code changes need relevant tests and mandatory gates. Investigate
@@ -100,11 +131,17 @@ them; it does not assign or authorize those tasks.
 pushes to main, then `bash docket/scripts/ci.sh`: queue validation, Markdown
 links and, on pull requests, the PR body's markers against the base and head
 queue snapshots (`PR`, `BASE`, `HEAD_BRANCH` and `GH_TOKEN` come from the event);
-body edits also rerun CI. PR supersessions cancel previous runs; main pushes do
-not. Jobs time out after 15 minutes. `Main validation` runs daily, manually,
-and on PRs changing its workflow, repeating checks/build and reporting review
-drift with `bash docket/scripts/review-due.sh --paths "remaldi tests"`, with
-seven-day package/report artifacts. It never operates a live browser.
+body edits also rerun CI. A `compat` job runs the tests alone on Python 3.13
+and 3.14, because `requires-python` admits them; it is not a required check.
+Workflows install a pinned uv with `astral-sh/setup-uv`, pin every action to a
+commit SHA (zizmor enforces this) and check out without persisted credentials,
+with complete Git history for the secret scan.
+PR supersessions cancel previous runs; main pushes do not. Jobs time out after
+15 minutes. `Main validation` runs daily, manually, and on PRs changing its
+workflow, repeating checks/build, auditing the locked dependencies with
+`scripts/audit-dependencies.sh` (pip-audit), and reporting review drift with
+`bash docket/scripts/review-due.sh --paths "remaldi tests"`, with seven-day
+package/report artifacts. It never operates a live browser.
 
 On a red main run, revert with authorization or file a P1 TODO the same day
 (P0 if releases are blocked), with run link and evidence. Keep it open until
@@ -138,7 +175,7 @@ reads from this project.
   the invariants in [ARCHITECTURE.md](../ARCHITECTURE.md), and the evidence
   boundaries above: fake-server tests prove transport and lifecycle invariants,
   not Vivaldi compatibility or visible behaviour.
-- Baseline commands beyond `bash scripts/check.sh`: `python -m build`, followed
+- Baseline commands beyond `bash scripts/check.sh`: `uv build`, followed
   by an inspection of the built artifact's metadata (license file and `remaldi`
   entry point present); `bash docket/scripts/review-due.sh --paths "remaldi tests"`
   for the drift figures.

@@ -1,0 +1,12 @@
+[files]
+extend-exclude = [
+  # Vendored and historical files are corrected upstream or not at all.
+  "docket/",
+  "reference/",
+  "assets/",
+  "uv.lock",
+]
+
+[default.extend-identifiers]
+# A Vivaldi private API name quoted from bundle.js.
+getFOAuthClientId = "getFOAuthClientId"

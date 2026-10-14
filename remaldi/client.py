@@ -84,7 +84,7 @@ def start_service(path: Path) -> None:
             environment["PYTHONPATH"] = (
                 package_root + os.pathsep + environment.get("PYTHONPATH", "")
             )
-            with open(path / "startup.log", "wb") as log:
+            with (path / "startup.log").open("wb") as log:
                 process = subprocess.Popen(
                     [sys.executable, "-m", "remaldi", "serve"],
                     stdin=subprocess.DEVNULL,

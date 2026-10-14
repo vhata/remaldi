@@ -116,7 +116,7 @@ class Browser:
                     self.on_change()
                 await self._connection(ui)
                 self.state, self.detail = "connected", "Vivaldi UI connected."
-            except Exception as exc:
+            except Exception as exc:  # noqa: BLE001 - every failure is classified into the reported state
                 self.state = (
                     "endpoint_rejected"
                     if isinstance(exc, urllib.error.HTTPError)
@@ -166,7 +166,7 @@ class Browser:
             result = await connection.request(
                 "Runtime.evaluate", {"expression": INCOGNITO_PROBE, "returnByValue": True}
             )
-        except Exception:
+        except Exception:  # noqa: BLE001 - any failure leaves the target unclassified
             return None
         finally:
             with contextlib.suppress(Exception):
@@ -191,7 +191,7 @@ class Browser:
                     target=identifier,
                     reason=str(exc),
                 ) from exc
-            connection.on_event = lambda event: self.on_change()
+            connection.on_event = lambda _event: self.on_change()
             self.connections[identifier] = connection
             self.generation += 1
             self.on_change()
@@ -218,11 +218,7 @@ class Browser:
             await self.refresh()
         async with self.lock:
             selected = next(
-                (
-                    item
-                    for item in self.targets
-                    if item.get("id") == (target if target else self.ui_target_id)
-                ),
+                (item for item in self.targets if item.get("id") == (target or self.ui_target_id)),
                 None,
             )
             if selected is None:

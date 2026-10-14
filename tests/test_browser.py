@@ -1,29 +1,37 @@
 import asyncio
 import json
 import unittest
+import urllib.error
+from email.message import Message
 from unittest.mock import AsyncMock, patch
 
-from websockets.asyncio.server import serve
+from websockets.asyncio.server import ServerConnection, serve
 
 from remaldi.adapter import VivaldiAdapter
 from remaldi.browser import EVENT_HOOKS, INCOGNITO_PROBE, UI_SUFFIX, Browser
 from remaldi.errors import ControlError
+from remaldi.protocol import JsonObject
+
+
+def socket_path(socket: ServerConnection) -> str:
+    assert socket.request is not None
+    return socket.request.path.strip("/")
 
 
 class BrowserTests(unittest.IsolatedAsyncioTestCase):
-    async def asyncSetUp(self):
-        self.received = []
-        self.sockets = []
+    async def asyncSetUp(self) -> None:
+        self.received: list[JsonObject] = []
+        self.sockets: list[ServerConnection] = []
         self.reject_subscription = False
-        self.received_by_path = {}
-        self.probe_values = {}
+        self.received_by_path: dict[str, list[JsonObject]] = {}
+        self.probe_values: dict[str, bool] = {}
 
-        async def handler(socket):
+        async def handler(socket: ServerConnection) -> None:
             self.sockets.append(socket)
             async for raw in socket:
                 request = json.loads(raw)
                 self.received.append(request)
-                path = socket.request.path.strip("/")
+                path = socket_path(socket)
                 self.received_by_path.setdefault(path, []).append(request)
                 expression = request.get("params", {}).get("expression")
                 if expression == INCOGNITO_PROBE and path in self.probe_values:
@@ -47,23 +55,23 @@ class BrowserTests(unittest.IsolatedAsyncioTestCase):
 
         self.server = await serve(handler, "127.0.0.1", 0)
         self.addAsyncCleanup(self.server.wait_closed)
-        self.addAsyncCleanup(self.server.close)
+        self.addCleanup(self.server.close)
         port = self.server.sockets[0].getsockname()[1]
         self.url = f"ws://127.0.0.1:{port}"
         self.browser = Browser("http://127.0.0.1:9222")
         self.addAsyncCleanup(self.browser.close)
 
-    def target(self, identifier, path=""):
+    def target(self, identifier: str, path: str = "") -> JsonObject:
         return {
             "id": identifier,
             "url": "chrome-extension://" + UI_SUFFIX,
             "webSocketDebuggerUrl": f"{self.url}/{path}" if path else self.url,
         }
 
-    def methods(self, path):
+    def methods(self, path: str) -> list[str]:
         return [request["method"] for request in self.received_by_path.get(path, [])]
 
-    async def test_incognito_ui_target_is_skipped_for_regular_profile(self):
+    async def test_incognito_ui_target_is_skipped_for_regular_profile(self) -> None:
         self.probe_values = {"incognito": True, "regular": False}
         targets = [self.target("private", "incognito"), self.target("normal", "regular")]
         with patch.object(self.browser, "_discover", return_value=targets):
@@ -86,7 +94,7 @@ class BrowserTests(unittest.IsolatedAsyncioTestCase):
             ],
         )
 
-    async def test_only_incognito_ui_targets_leave_ui_unavailable(self):
+    async def test_only_incognito_ui_targets_leave_ui_unavailable(self) -> None:
         self.probe_values = {"one": True, "two": True}
         targets = [self.target("first", "one"), self.target("second", "two")]
         with patch.object(self.browser, "_discover", return_value=targets):
@@ -97,23 +105,22 @@ class BrowserTests(unittest.IsolatedAsyncioTestCase):
             await self.browser.request("Browser.getVersion")
         self.assertEqual(caught.exception.code, "ui_target_unavailable")
 
-    async def test_probe_connections_are_closed(self):
+    async def test_probe_connections_are_closed(self) -> None:
         self.probe_values = {"incognito": True, "regular": False}
         targets = [self.target("private", "incognito"), self.target("normal", "regular")]
         with patch.object(self.browser, "_discover", return_value=targets):
             await self.browser.refresh()
+        open_paths: list[str] = []
         for _ in range(50):
             open_paths = [
-                socket.request.path.strip("/")
-                for socket in self.sockets
-                if socket.state.name == "OPEN"
+                socket_path(socket) for socket in self.sockets if socket.state.name == "OPEN"
             ]
             if open_paths == ["regular"]:
                 break
             await asyncio.sleep(0.01)
         self.assertEqual(open_paths, ["regular"])
 
-    async def test_unclassified_ui_target_is_retried_after_a_delay(self):
+    async def test_unclassified_ui_target_is_retried_after_a_delay(self) -> None:
         # The default handler answers the probe with a non-boolean value.
         self.probe_values = {"regular": False}
         unknown = self.target("unknown", "unknown")
@@ -136,7 +143,7 @@ class BrowserTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.methods("unknown"), ["Runtime.evaluate", "Runtime.evaluate"])
         self.assertEqual(list(self.browser.connections), ["normal"])
 
-    async def test_switching_ui_target_invalidates_and_hooks_existing_connection(self):
+    async def test_switching_ui_target_invalidates_and_hooks_existing_connection(self) -> None:
         self.probe_values = {"incognito": True, "regular": False}
         adapter = VivaldiAdapter(self.browser)
         self.browser.on_change = adapter.invalidate
@@ -162,7 +169,7 @@ class BrowserTests(unittest.IsolatedAsyncioTestCase):
             ["Runtime.enable", "Runtime.addBinding", "Runtime.evaluate"],
         )
 
-    async def test_refresh_reuses_connection_then_replaces_disappeared_target(self):
+    async def test_refresh_reuses_connection_then_replaces_disappeared_target(self) -> None:
         with patch.object(self.browser, "_discover", return_value=[self.target("first")]):
             await self.browser.refresh()
             first = self.browser.connections["first"]
@@ -178,7 +185,7 @@ class BrowserTests(unittest.IsolatedAsyncioTestCase):
         self.assertGreater(self.browser.generation, generation)
         self.assertEqual(self.browser.state, "connected")
 
-    async def test_discovery_failure_discards_targets_and_connections(self):
+    async def test_discovery_failure_discards_targets_and_connections(self) -> None:
         with patch.object(self.browser, "_discover", return_value=[self.target("first")]):
             await self.browser.refresh()
         with patch.object(self.browser, "_discover", side_effect=OSError("browser unavailable")):
@@ -190,12 +197,11 @@ class BrowserTests(unittest.IsolatedAsyncioTestCase):
             await self.browser.request("Browser.getVersion")
         self.assertEqual(caught.exception.code, "endpoint_unavailable")
 
-    async def test_endpoint_rejection_is_distinct_from_missing_ui(self):
-        import urllib.error
-
+    async def test_endpoint_rejection_is_distinct_from_missing_ui(self) -> None:
         rejection = urllib.error.HTTPError(
-            "http://127.0.0.1:9222/json/list", 403, "Forbidden", {}, None
+            "http://127.0.0.1:9222/json/list", 403, "Forbidden", Message(), None
         )
+        self.addCleanup(rejection.close)
         with patch.object(self.browser, "_discover", side_effect=rejection):
             await self.browser.refresh()
         self.assertEqual(self.browser.state, "endpoint_rejected")
@@ -204,7 +210,7 @@ class BrowserTests(unittest.IsolatedAsyncioTestCase):
             await self.browser.refresh()
         self.assertEqual(self.browser.state, "ui_target_unavailable")
 
-    async def test_refresh_reconnects_same_target_after_disconnect(self):
+    async def test_refresh_reconnects_same_target_after_disconnect(self) -> None:
         with patch.object(self.browser, "_discover", return_value=[self.target("first")]):
             await self.browser.refresh()
             first = self.browser.connections["first"]
@@ -214,7 +220,7 @@ class BrowserTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(self.browser.connections["first"].connected)
         self.assertEqual(await self.browser.request("Browser.getVersion"), {"ok": True})
 
-    async def test_missing_explicit_target_is_structured_error(self):
+    async def test_missing_explicit_target_is_structured_error(self) -> None:
         with patch.object(self.browser, "_discover", return_value=[self.target("first")]):
             await self.browser.refresh()
         with self.assertRaises(ControlError) as caught:
@@ -222,7 +228,7 @@ class BrowserTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(caught.exception.code, "target_unavailable")
         self.assertEqual(caught.exception.details["target"], "missing")
 
-    async def test_explicit_target_handshake_failure_is_structured_error(self):
+    async def test_explicit_target_handshake_failure_is_structured_error(self) -> None:
         target = {
             "id": "broken",
             "url": "https://example.invalid",
@@ -235,7 +241,7 @@ class BrowserTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(caught.exception.code, "target_connection_failed")
         self.assertEqual(caught.exception.details["target"], "broken")
 
-    async def test_browser_binding_event_invalidates_adapter(self):
+    async def test_browser_binding_event_invalidates_adapter(self) -> None:
         adapter = VivaldiAdapter(self.browser)
         self.browser.on_change = adapter.invalidate
         with patch.object(self.browser, "_discover", return_value=[self.target("first")]):
@@ -260,22 +266,26 @@ class BrowserTests(unittest.IsolatedAsyncioTestCase):
             await asyncio.sleep(0.01)
         self.assertGreater(adapter.revision, revision)
 
-    async def test_unsupported_event_subscription_uses_ttl_fallback(self):
+    async def test_unsupported_event_subscription_uses_ttl_fallback(self) -> None:
         self.reject_subscription = True
         with patch.object(self.browser, "_discover", return_value=[self.target("first")]):
             await self.browser.refresh()
         self.assertEqual(self.browser.state, "connected")
         self.assertEqual(self.browser.event_support, "ttl_only")
         adapter = VivaldiAdapter(self.browser)
-        adapter.evaluate = AsyncMock(return_value={"windows": [], "capabilities": {}})
+        evaluate = self.enterContext(
+            patch.object(
+                adapter, "evaluate", AsyncMock(return_value={"windows": [], "capabilities": {}})
+            )
+        )
         await adapter.snapshot()
         await adapter.snapshot()
-        self.assertEqual(adapter.evaluate.await_count, 1)
+        self.assertEqual(evaluate.await_count, 1)
         adapter.updated -= 6
         await adapter.snapshot()
-        self.assertEqual(adapter.evaluate.await_count, 2)
+        self.assertEqual(evaluate.await_count, 2)
 
-    async def test_event_hooks_watch_workspace_preference_and_tab_data(self):
+    async def test_event_hooks_watch_workspace_preference_and_tab_data(self) -> None:
         with patch.object(self.browser, "_discover", return_value=[self.target("first")]):
             await self.browser.refresh()
         expression = next(

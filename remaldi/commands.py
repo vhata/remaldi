@@ -362,7 +362,7 @@ COMMAND_WORKSPACE_SWITCH_8
 COMMAND_WORKSPACE_SWITCH_9
 COMMAND_WORKSPACE_SWITCH_BACK_ORDER
 COMMAND_WORKSPACE_SWITCH_FORWARD_ORDER
-""".split()
+""".split()  # noqa: SIM905 - one name per line keeps the block diffable against registered.txt
 )
 
 

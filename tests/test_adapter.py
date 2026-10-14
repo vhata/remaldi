@@ -1,26 +1,33 @@
 import asyncio
 import json
 import unittest
-from types import SimpleNamespace
+from collections.abc import Iterable
 from unittest.mock import AsyncMock
 
 from remaldi.adapter import SNAPSHOT, VivaldiAdapter, normalize_snapshot
 from remaldi.errors import ControlError
+from remaldi.protocol import JsonObject
+
+
+class FakeController:
+    def __init__(self, value: object = None) -> None:
+        self.generation = 1
+        self.request = AsyncMock(return_value={"result": {"value": value}})
 
 
 class AdapterTests(unittest.IsolatedAsyncioTestCase):
-    def adapter(self, capabilities=None):
-        state = {
+    def adapter(
+        self, capabilities: JsonObject | None = None
+    ) -> tuple[VivaldiAdapter, FakeController, JsonObject]:
+        state: JsonObject = {
             "windows": [{"id": 7, "focused": True}],
             "workspaces": [{"id": 2}],
             "capabilities": capabilities or {"workspace_switch": True},
         }
-        controller = SimpleNamespace(
-            generation=1, request=AsyncMock(return_value={"result": {"value": state}})
-        )
+        controller = FakeController(state)
         return VivaldiAdapter(controller), controller, state
 
-    async def test_concurrent_refreshes_share_snapshot_and_cache_expires(self):
+    async def test_concurrent_refreshes_share_snapshot_and_cache_expires(self) -> None:
         adapter, controller, state = self.adapter()
         values = await asyncio.gather(*(adapter.snapshot() for _ in range(8)))
         self.assertEqual(values, [normalize_snapshot(state)] * 8)
@@ -35,7 +42,7 @@ class AdapterTests(unittest.IsolatedAsyncioTestCase):
         await adapter.snapshot()
         self.assertEqual(controller.request.await_count, 4)
 
-    def switch_adapter(self, result):
+    def switch_adapter(self, result: object) -> tuple[VivaldiAdapter, FakeController]:
         adapter, controller, state = self.adapter()
         controller.request.side_effect = [
             {"result": {"value": state}},
@@ -44,10 +51,12 @@ class AdapterTests(unittest.IsolatedAsyncioTestCase):
         ]
         return adapter, controller
 
-    def evaluated(self, controller):
+    def evaluated(self, controller: FakeController) -> list[str]:
         return [call.args[1]["expression"] for call in controller.request.await_args_list]
 
-    async def test_switch_dispatches_local_workspace_action_once_and_invalidates_snapshot(self):
+    async def test_switch_dispatches_local_workspace_action_once_and_invalidates_snapshot(
+        self,
+    ) -> None:
         adapter, controller = self.switch_adapter({"dispatched": True})
         self.assertEqual(await adapter.switch_workspace("1712345678901"), {"dispatched": True})
         dispatches = [
@@ -67,14 +76,14 @@ class AdapterTests(unittest.IsolatedAsyncioTestCase):
         await adapter.snapshot()
         self.assertEqual(controller.request.await_count, 3)
 
-    async def test_switch_parameter_is_canonical_decimal_id(self):
+    async def test_switch_parameter_is_canonical_decimal_id(self) -> None:
         for value, parameter in [(2, "2"), ("0002", "2"), ("0", "0"), (2**53 - 1, str(2**53 - 1))]:
             with self.subTest(value=value):
                 adapter, controller = self.switch_adapter({"dispatched": True})
                 await adapter.switch_workspace(value)
                 self.assertIn(f'const workspaceId = "{parameter}";', self.evaluated(controller)[1])
 
-    async def test_switch_uses_explicit_window(self):
+    async def test_switch_uses_explicit_window(self) -> None:
         adapter, controller, state = self.adapter()
         state["windows"] = [{"id": 7, "focused": True}, {"id": 9, "focused": False}]
         controller.request.side_effect = [
@@ -84,7 +93,7 @@ class AdapterTests(unittest.IsolatedAsyncioTestCase):
         await adapter.switch_workspace(2, window_id=9)
         self.assertIn("const windowId = 9;", self.evaluated(controller)[1])
 
-    async def test_switch_checks_preference_and_window_before_dispatch(self):
+    async def test_switch_checks_preference_and_window_before_dispatch(self) -> None:
         adapter, controller = self.switch_adapter({"dispatched": True})
         await adapter.switch_workspace(2)
         expression = self.evaluated(controller)[1]
@@ -111,7 +120,7 @@ class AdapterTests(unittest.IsolatedAsyncioTestCase):
                 self.assertLess(expression.index(rejection), dispatch)
         self.assertGreater(expression.index("return { dispatched: true }"), dispatch)
 
-    async def test_browser_rejections_are_structured_errors_without_replay(self):
+    async def test_browser_rejections_are_structured_errors_without_replay(self) -> None:
         cases = {
             "unknown_workspace": "unknown_workspace",
             "minimized_window": "minimized_window",
@@ -129,7 +138,7 @@ class AdapterTests(unittest.IsolatedAsyncioTestCase):
                 await adapter.snapshot()
                 self.assertEqual(controller.request.await_count, 3)
 
-    async def test_unexpected_switch_result_is_not_success(self):
+    async def test_unexpected_switch_result_is_not_success(self) -> None:
         values = [
             None,
             {},
@@ -151,14 +160,14 @@ class AdapterTests(unittest.IsolatedAsyncioTestCase):
                 await adapter.snapshot()
                 self.assertEqual(controller.request.await_count, 3)
 
-    async def test_unsupported_switch_has_no_mutation(self):
+    async def test_unsupported_switch_has_no_mutation(self) -> None:
         adapter, controller, _ = self.adapter({"workspace_switch": False})
         with self.assertRaises(ControlError) as caught:
             await adapter.switch_workspace(2)
         self.assertEqual(caught.exception.code, "unsupported_operation")
         self.assertEqual(controller.request.await_count, 1)
 
-    async def test_invalid_workspace_is_rejected_before_browser_call(self):
+    async def test_invalid_workspace_is_rejected_before_browser_call(self) -> None:
         adapter, controller, _ = self.adapter()
         for value in [
             True,
@@ -177,7 +186,7 @@ class AdapterTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(caught.exception.code, "invalid_parameters")
         controller.request.assert_not_awaited()
 
-    async def test_failed_mutation_invalidates_state_without_replay(self):
+    async def test_failed_mutation_invalidates_state_without_replay(self) -> None:
         adapter, controller, state = self.adapter()
         controller.request.side_effect = [
             {"result": {"value": state}},
@@ -191,13 +200,13 @@ class AdapterTests(unittest.IsolatedAsyncioTestCase):
         await adapter.snapshot()
         self.assertEqual(controller.request.await_count, 3)
 
-    async def test_overlapping_forced_refreshes_share_browser_request(self):
+    async def test_overlapping_forced_refreshes_share_browser_request(self) -> None:
         adapter, controller, state = self.adapter()
         await adapter.snapshot()
         controller.request.reset_mock()
         started, release = asyncio.Event(), asyncio.Event()
 
-        async def blocked(*args, **kwargs):
+        async def blocked(*_args: object, **_kwargs: object) -> JsonObject:
             started.set()
             await release.wait()
             return {"result": {"value": state}}
@@ -217,59 +226,60 @@ WORKSPACE_A = 1700000000001
 WORKSPACE_B = 1700000000002
 
 
-def workspace_reading(value):
+def workspace_reading(value: object) -> JsonObject:
     """A successful vivaldi.prefs.get reading as the SNAPSHOT expression returns it."""
     return {"result": {"value": value, "defaultValue": [], "store": "user"}}
 
 
-def tab(identifier, ext_data=None):
-    item = {"id": identifier, "windowId": 7}
+def tab(identifier: int, ext_data: object = None) -> JsonObject:
+    item: JsonObject = {"id": identifier, "windowId": 7}
     if ext_data is not None:
         item["vivExtData"] = ext_data if isinstance(ext_data, str) else json.dumps(ext_data)
     return item
 
 
 class WorkspaceSnapshotTests(unittest.IsolatedAsyncioTestCase):
-    async def snapshot(self, reading, tabs=()):
-        raw = {
+    async def snapshot(self, reading: object, tabs: Iterable[object] = ()) -> JsonObject:
+        raw: JsonObject = {
             "windows": [{"id": 7, "focused": True, "tabs": list(tabs)}],
             "capabilities": {"windows": True, "tabs": True, "workspace_switch": True},
         }
         if reading is not ...:
             raw["workspace_preference"] = reading
-        controller = SimpleNamespace(
-            generation=1, request=AsyncMock(return_value={"result": {"value": raw}})
-        )
-        return await VivaldiAdapter(controller).snapshot()
+        return await VivaldiAdapter(FakeController(raw)).snapshot()
 
-    def assert_unsupported(self, state):
+    def assert_unsupported(self, state: JsonObject) -> None:
         self.assertIsNone(state["workspaces"])
         self.assertFalse(state["capabilities"]["workspaces"])
         self.assertTrue(state["capabilities"]["workspace_switch"])
         self.assertEqual(state["windows"][0]["id"], 7)
         self.assertNotIn("workspace_preference", state)
 
-    def test_command_dispatch_needs_menubar_dispatch_and_prefs(self):
+    def test_command_dispatch_needs_menubar_dispatch_and_prefs(self) -> None:
         # Every command run reads the chain list with vivaldi.prefs.get.
         for definition in [
-            "const switchSupported = typeof vivaldi !== 'undefined'"
-            " && typeof vivaldi.menubar?.onActivated?.dispatch === 'function';",
-            "const prefsSupported = typeof vivaldi !== 'undefined'"
-            " && typeof vivaldi.prefs?.get === 'function';",
+            (
+                "const switchSupported = typeof vivaldi !== 'undefined'"
+                " && typeof vivaldi.menubar?.onActivated?.dispatch === 'function';"
+            ),
+            (
+                "const prefsSupported = typeof vivaldi !== 'undefined'"
+                " && typeof vivaldi.prefs?.get === 'function';"
+            ),
             "workspace_switch:switchSupported,",
             "command_dispatch:switchSupported && prefsSupported}",
         ]:
             with self.subTest(definition=definition):
                 self.assertEqual(SNAPSHOT.count(definition), 1)
 
-    def test_snapshot_reads_workspace_preference(self):
+    def test_snapshot_reads_workspace_preference(self) -> None:
         self.assertIn("vivaldi.prefs.get('vivaldi.workspaces.list'", SNAPSHOT)
         prefs_read = SNAPSHOT[SNAPSHOT.index("vivaldi.prefs.get(") :]
         self.assertIn("const error = chrome.runtime.lastError;", prefs_read)
         self.assertIn("resolve(error ? {error:", prefs_read)
         self.assertNotIn("vivaldi.workspaces.getAll", SNAPSHOT)
 
-    async def test_supported_preference_lists_workspaces_without_icons(self):
+    async def test_supported_preference_lists_workspaces_without_icons(self) -> None:
         state = await self.snapshot(
             workspace_reading(
                 [
@@ -293,12 +303,12 @@ class WorkspaceSnapshotTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(state["capabilities"]["workspace_switch"])
         self.assertNotIn("workspace_preference", state)
 
-    async def test_empty_preference_is_supported_with_no_workspaces(self):
+    async def test_empty_preference_is_supported_with_no_workspaces(self) -> None:
         state = await self.snapshot(workspace_reading([]))
         self.assertEqual(state["workspaces"], [])
         self.assertTrue(state["capabilities"]["workspaces"])
 
-    async def test_tabs_report_workspace_membership(self):
+    async def test_tabs_report_workspace_membership(self) -> None:
         state = await self.snapshot(
             workspace_reading([{"id": WORKSPACE_A, "name": "Invented", "icon": ""}]),
             [
@@ -318,7 +328,7 @@ class WorkspaceSnapshotTests(unittest.IsolatedAsyncioTestCase):
         )
         self.assertEqual(json.loads(tabs[0]["vivExtData"])["ext"], "kept")
 
-    async def test_tab_workspace_id_in_exponent_form_is_an_integer(self):
+    async def test_tab_workspace_id_in_exponent_form_is_an_integer(self) -> None:
         # Vivaldi writes vivExtData workspace IDs in JSON exponent form, which
         # json.loads parses as a float.
         exponent_id = 1712345678901
@@ -336,7 +346,7 @@ class WorkspaceSnapshotTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(all(type(value) is int for value in reported))
         self.assertEqual(reported[0], state["workspaces"][0]["id"])
 
-    async def test_tab_workspace_id_rejects_unusable_floats(self):
+    async def test_tab_workspace_id_rejects_unusable_floats(self) -> None:
         values = {
             "fractional": '{"workspaceId":1.7123456789015e+12}',
             "small fraction": '{"workspaceId":0.5}',
@@ -354,11 +364,11 @@ class WorkspaceSnapshotTests(unittest.IsolatedAsyncioTestCase):
             with self.subTest(label):
                 self.assertIsNone(reported[index]["workspace_id"])
 
-    async def test_workspace_list_ids_stay_strict_integers(self):
+    async def test_workspace_list_ids_stay_strict_integers(self) -> None:
         state = await self.snapshot(workspace_reading([{"id": 5.0, "name": "Invented"}]))
         self.assertIsNone(state["workspaces"])
 
-    async def test_malformed_tab_data_is_null_per_tab(self):
+    async def test_malformed_tab_data_is_null_per_tab(self) -> None:
         values = [
             "{not json",
             "",
@@ -372,7 +382,7 @@ class WorkspaceSnapshotTests(unittest.IsolatedAsyncioTestCase):
             {"workspaceId": 2**53},
             {"workspaceId": None},
         ]
-        tabs = [tab(index, value) for index, value in enumerate(values)]
+        tabs: list[object] = [tab(index, value) for index, value in enumerate(values)]
         tabs += [{"id": 98, "vivExtData": {"workspaceId": WORKSPACE_A}}, "not a tab"]
         tabs.append(tab(99, {"workspaceId": WORKSPACE_B}))
         state = await self.snapshot(workspace_reading([]), tabs)
@@ -385,7 +395,7 @@ class WorkspaceSnapshotTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(reported[-1]["workspace_id"], WORKSPACE_B)
         self.assertTrue(state["capabilities"]["workspaces"])
 
-    async def test_malformed_preference_reports_unsupported(self):
+    async def test_malformed_preference_reports_unsupported(self) -> None:
         valid = {"id": WORKSPACE_A, "name": "Invented", "icon": ""}
         readings = {
             "result is null": {"result": None},
@@ -412,7 +422,7 @@ class WorkspaceSnapshotTests(unittest.IsolatedAsyncioTestCase):
                 self.assert_unsupported(state)
                 self.assertEqual(state["windows"][0]["tabs"][0]["workspace_id"], WORKSPACE_A)
 
-    async def test_last_error_reports_unsupported(self):
+    async def test_last_error_reports_unsupported(self) -> None:
         state = await self.snapshot({"error": "Invented unknown preference"})
         self.assert_unsupported(state)
         state = await self.snapshot(
@@ -420,11 +430,11 @@ class WorkspaceSnapshotTests(unittest.IsolatedAsyncioTestCase):
         )
         self.assert_unsupported(state)
 
-    async def test_missing_preference_api_reports_unsupported(self):
+    async def test_missing_preference_api_reports_unsupported(self) -> None:
         self.assert_unsupported(await self.snapshot(None))
         self.assert_unsupported(await self.snapshot(...))
 
-    def test_normalize_does_not_mutate_browser_value(self):
+    def test_normalize_does_not_mutate_browser_value(self) -> None:
         raw = {
             "windows": [{"id": 7, "tabs": [tab(1, {"workspaceId": WORKSPACE_A})]}],
             "workspace_preference": workspace_reading([]),

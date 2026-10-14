@@ -85,6 +85,22 @@ before calling ready work available. Priorities were set in triage on 2026-10-11
     hide and return, and report version, capabilities and limits without
     private data.
 
+- [TOOLING] `automated-dependency-updates` — **Open update PRs for `uv.lock` and the SHA-pinned workflow actions automatically.** Every pin is now exact, so nothing moves without someone running `uv lock --upgrade` and editing workflow SHAs by hand.
+  - Source: `uv-tooling` PR, 2026-10-13.
+  - Starting point: Dependabot's `uv` and `github-actions` ecosystems, or Renovate.
+  - Triage outcome: bot PR bodies carry no `## Why` or `Type:` line, so
+    `docket/scripts/check-pr-markers.sh` would fail them in `Checks`; decide
+    whether bot PRs are exempted in the workflow, rewritten before merge, or
+    the tool is left out.
+
+- [TOOLING] `pyright-strict-application` — **Run basedpyright in strict mode over `remaldi/`.** Standard mode misses values of unknown type flowing out of decoded JSON.
+  - Source: `uv-tooling` PR, 2026-10-13; strict mode reported 49 errors in
+    `remaldi/` and `scripts/` at the time, nearly all `dict[Unknown, Unknown]`
+    from `json.loads` and `.get`.
+  - Starting point: a JSON value type at the DevTools and socket boundaries in
+    `transport.py`, `service.py` and `client.py`; `[tool.basedpyright]` in
+    `pyproject.toml`.
+
 ## Needs proof of concept
 
 ### P2 Normal

@@ -10,10 +10,11 @@ import tempfile
 import time
 import unittest
 from pathlib import Path
+from typing import Any
 
 
 class LifecycleTests(unittest.TestCase):
-    def setUp(self):
+    def setUp(self) -> None:
         self.temp = tempfile.TemporaryDirectory(prefix="remaldi-test-", dir="/tmp")
         self.addCleanup(self.temp.cleanup)
         self.environment = dict(
@@ -21,20 +22,21 @@ class LifecycleTests(unittest.TestCase):
         )
         self.addCleanup(self.stop_service)
 
-    def command(self, *arguments):
+    def command(self, *arguments: str) -> subprocess.CompletedProcess[str]:
         return subprocess.run(
             [sys.executable, "-m", "remaldi", *arguments],
             env=self.environment,
             capture_output=True,
             text=True,
             timeout=15,
+            check=False,
         )
 
-    def result(self, completed):
+    def result(self, completed: subprocess.CompletedProcess[str]) -> Any:
         value = json.loads(completed.stdout)
         return value.get("result", value)
 
-    def stop_service(self):
+    def stop_service(self) -> None:
         self.command("stop")
         deadline = time.monotonic() + 5
         while time.monotonic() < deadline:
@@ -43,7 +45,7 @@ class LifecycleTests(unittest.TestCase):
             time.sleep(0.05)
         self.fail("test daemon did not stop")
 
-    def test_status_and_stop_do_not_start_service(self):
+    def test_status_and_stop_do_not_start_service(self) -> None:
         status = self.command("status")
         self.assertEqual(status.returncode, 0, status.stderr)
         self.assertNotEqual(self.result(status).get("service"), "running")
@@ -51,7 +53,7 @@ class LifecycleTests(unittest.TestCase):
         self.assertEqual(stopped.returncode, 0, stopped.stderr)
         self.assertNotEqual(self.result(self.command("status")).get("service"), "running")
 
-    def test_concurrent_first_use_starts_one_service_and_reuses_it(self):
+    def test_concurrent_first_use_starts_one_service_and_reuses_it(self) -> None:
         with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
             calls = list(
                 executor.map(lambda _: self.command("raw", "Browser.getVersion"), range(4))
@@ -67,7 +69,7 @@ class LifecycleTests(unittest.TestCase):
         self.stop_service()
         self.assertNotEqual(self.result(self.command("status")).get("service"), "running")
 
-    def test_first_use_recovers_stale_socket(self):
+    def test_first_use_recovers_stale_socket(self) -> None:
         socket_path = Path(self.temp.name) / "control.sock"
         with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as stale:
             stale.bind(str(socket_path))
@@ -75,7 +77,7 @@ class LifecycleTests(unittest.TestCase):
         self.command("raw", "Browser.getVersion")
         self.assertEqual(self.result(self.command("status"))["service"], "running")
 
-    def test_socket_protocol_rejects_version_mismatch_then_accepts_status(self):
+    def test_socket_protocol_rejects_version_mismatch_then_accepts_status(self) -> None:
         self.command("raw", "Browser.getVersion")
         with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as client:
             client.settimeout(5)
@@ -94,7 +96,7 @@ class LifecycleTests(unittest.TestCase):
                 self.assertEqual(accepted["id"], "good")
                 self.assertEqual(accepted["result"]["service"], "running")
 
-    def test_command_cli_lists_and_denies_without_a_browser(self):
+    def test_command_cli_lists_and_denies_without_a_browser(self) -> None:
         listed = self.command("command", "list")
         self.assertEqual(listed.returncode, 0, listed.stderr)
         result = json.loads(listed.stdout)

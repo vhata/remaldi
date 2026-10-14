@@ -3,7 +3,8 @@ import json
 import logging
 import os
 import signal
-from collections.abc import Awaitable, Callable, Set
+from collections.abc import Awaitable, Callable
+from collections.abc import Set as AbstractSet
 from logging.handlers import RotatingFileHandler
 from typing import Any
 
@@ -16,6 +17,8 @@ from .protocol import MAX_MESSAGE, JsonObject
 from .runtime import lock_file, runtime_dir
 
 REQUEST_TIMEOUT = 12
+
+logger = logging.getLogger(__name__)
 
 
 class Service:
@@ -35,7 +38,7 @@ class Service:
         self.validate(params, {"refresh"})
         if "refresh" in params and not isinstance(params["refresh"], bool):
             raise ControlError("invalid_parameters", "refresh must be boolean.")
-        return await self.adapter.snapshot(params.get("refresh", False))
+        return await self.adapter.snapshot(refresh=params.get("refresh", False))
 
     async def workspace_switch(self, params: JsonObject) -> Any:
         self.validate(params, {"workspace_id", "window_id"}, {"workspace_id"})
@@ -50,7 +53,9 @@ class Service:
         return await self.adapter.run_command(**params)
 
     @staticmethod
-    def validate(params: JsonObject, allowed: Set[str], required: Set[str] = frozenset()) -> None:
+    def validate(
+        params: JsonObject, allowed: AbstractSet[str], required: AbstractSet[str] = frozenset()
+    ) -> None:
         if set(params) - allowed or required - set(params):
             raise ControlError("invalid_parameters", "Unexpected or missing operation parameters.")
 
@@ -158,7 +163,7 @@ class Service:
         except (ConnectionError, TimeoutError, ValueError):
             pass
         except Exception:
-            logging.exception("Client request failed")
+            logger.exception("Client request failed")
         finally:
             writer.close()
             await writer.wait_closed()
@@ -192,18 +197,18 @@ async def serve(endpoint: str) -> None:
             task.add_done_callback(handlers.discard)
 
         server = await asyncio.start_unix_server(accept, path=socket, limit=MAX_MESSAGE)
-        os.chmod(socket, 0o600)
+        socket.chmod(0o600)
         loop = asyncio.get_running_loop()
         for sig in (signal.SIGTERM, signal.SIGINT):
             loop.add_signal_handler(sig, service.stopping.set)
         monitor = asyncio.create_task(service.browser.monitor())
-        logging.info("Service ready pid=%s", os.getpid())
+        logger.info("Service ready pid=%s", os.getpid())
         await service.stopping.wait()
     finally:
-        if server:
+        if server is not None:
             server.close()
             await server.wait_closed()
-        if monitor:
+        if monitor is not None:
             monitor.cancel()
             await asyncio.gather(monitor, return_exceptions=True)
         if handlers:
