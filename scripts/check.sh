@@ -8,9 +8,10 @@ cd "$(dirname "$0")/.."
 run() { uv run --locked "$@"; }
 # tracked [--executable] PATHSPEC...: set "matched" to the tracked files that
 # match, leaving out docket/, which is vendored and checked upstream. The
-# filtering is done here because git 2.55 returns nothing for a glob combined
-# with an exclude pathspec. An empty match is an error, since most tools would
-# silently read standard input instead.
+# filtering is done here because git before 2.56 returns nothing for a
+# pathspec with a leading directory combined with an exclude pathspec. An
+# empty match is an error, since most tools would silently read standard
+# input instead.
 tracked() {
   local executable=0 line path
   if [ "$1" = "--executable" ]; then
@@ -18,14 +19,14 @@ tracked() {
     shift
   fi
   matched=()
-  while IFS= read -r line; do
+  while IFS= read -r -d '' line; do
     path="${line#* }"
     case "$path" in docket/*) continue ;; esac
     if [ "$executable" -eq 1 ] && [ "${line%% *}" != 100755 ]; then
       continue
     fi
     matched+=("$path")
-  done < <(git ls-files --format='%(objectmode) %(path)' -- "$@")
+  done < <(git ls-files -z --format='%(objectmode) %(path)' -- "$@")
   if [ "${#matched[@]}" -eq 0 ]; then
     echo "check: no tracked files match $*" >&2
     return 1
@@ -39,7 +40,7 @@ files() {
     shift
   done
   shift
-  tracked "${specs[@]}"
+  tracked "${specs[@]}" || return 1
   run "$@" "${matched[@]}"
 }
 
@@ -56,11 +57,11 @@ run actionlint
 run zizmor --offline .github/workflows
 run typos
 
-# Repository hygiene: whitespace errors, conflict markers, TOML and YAML
-# syntax, and shebangs agreeing with the executable bit.
+# Repository hygiene: whitespace errors and leftover conflict markers (both
+# from git diff --check), TOML and YAML syntax, and shebangs agreeing with the
+# executable bit.
 tracked .
 git diff --check "$(git hash-object -t tree /dev/null)" -- "${matched[@]}"
-files . -- check-merge-conflict
 files '*.toml' -- check-toml
 files '*.yml' '*.yaml' -- check-yaml
 tracked --executable .

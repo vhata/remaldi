@@ -65,18 +65,21 @@ repos:
         entry: uv run --locked check-toml
         language: unsupported
         types: [toml]
+        exclude: ^docket/
         stages: [pre-commit]
       - id: check-yaml
         name: YAML syntax
         entry: uv run --locked check-yaml
         language: unsupported
         types: [yaml]
+        exclude: ^docket/
         stages: [pre-commit]
       - id: check-merge-conflict
         name: Merge conflict markers
         entry: uv run --locked check-merge-conflict
         language: unsupported
         types: [text]
+        exclude: ^docket/
         stages: [pre-commit]
       - id: check-executables-have-shebangs
         name: Executables have shebangs
@@ -96,6 +99,7 @@ repos:
         name: Large files
         entry: uv run --locked check-added-large-files
         language: unsupported
+        exclude: ^docket/
         stages: [pre-commit]
       - id: lockfile
         name: uv.lock matches pyproject.toml

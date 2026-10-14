@@ -45,6 +45,8 @@ jobs:
   # The supported range is requires-python >=3.12; the gate above runs on the
   # 3.12 development baseline, so later interpreters run the tests only.
   compat:
+    permissions:
+      contents: read
     timeout-minutes: 15
     strategy:
       matrix:
