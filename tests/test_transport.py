@@ -3,26 +3,32 @@
 import asyncio
 import json
 import unittest
+from collections.abc import Awaitable, Callable
 
-from websockets.asyncio.server import serve
+from websockets.asyncio.server import ServerConnection, serve
 
 from remaldi.errors import ControlError
+from remaldi.protocol import JsonObject
 from remaldi.transport import CDPConnection
 
 
 class TransportTests(unittest.IsolatedAsyncioTestCase):
-    async def connect(self, handler, timeout=0.2):
+    async def connect(
+        self,
+        handler: Callable[[ServerConnection], Awaitable[None]],
+        request_timeout: float = 0.2,
+    ) -> CDPConnection:
         server = await serve(handler, "127.0.0.1", 0)
         self.addAsyncCleanup(server.wait_closed)
-        self.addAsyncCleanup(server.close)
+        self.addCleanup(server.close)
         port = server.sockets[0].getsockname()[1]
-        connection = CDPConnection(f"ws://127.0.0.1:{port}", timeout=timeout)
+        connection = CDPConnection(f"ws://127.0.0.1:{port}", timeout=request_timeout)
         await connection.connect()
         self.addAsyncCleanup(connection.close)
         return connection
 
-    async def test_correlates_out_of_order_replies_with_events_between(self):
-        async def handler(socket):
+    async def test_correlates_out_of_order_replies_with_events_between(self) -> None:
+        async def handler(socket: ServerConnection) -> None:
             requests = [json.loads(await socket.recv()) for _ in range(2)]
             await socket.send(
                 json.dumps({"method": "Runtime.consoleAPICalled", "params": {"type": "log"}})
@@ -34,7 +40,7 @@ class TransportTests(unittest.IsolatedAsyncioTestCase):
             await socket.wait_closed()
 
         connection = await self.connect(handler)
-        events = []
+        events: list[JsonObject] = []
         connection.on_event = events.append
         first, second = await asyncio.gather(
             connection.request("Browser.getVersion", {}),
@@ -44,8 +50,8 @@ class TransportTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(second, {"method": "Runtime.getHeapUsage"})
         self.assertEqual(events[0]["method"], "Runtime.consoleAPICalled")
 
-    async def test_request_timeout_does_not_break_next_request(self):
-        async def handler(socket):
+    async def test_request_timeout_does_not_break_next_request(self) -> None:
+        async def handler(socket: ServerConnection) -> None:
             first = json.loads(await socket.recv())
             await asyncio.sleep(0.1)
             await socket.send(json.dumps({"id": first["id"], "result": {"late": True}}))
@@ -53,15 +59,15 @@ class TransportTests(unittest.IsolatedAsyncioTestCase):
             await socket.send(json.dumps({"id": second["id"], "result": {"ok": True}}))
             await socket.wait_closed()
 
-        connection = await self.connect(handler, timeout=0.05)
+        connection = await self.connect(handler, request_timeout=0.05)
         with self.assertRaises(ControlError) as caught:
             await connection.request("Browser.getVersion", {})
         self.assertEqual(caught.exception.code, "unknown_outcome")
         await asyncio.sleep(0.1)
         self.assertEqual(await connection.request("Browser.getVersion", {}), {"ok": True})
 
-    async def test_cdp_error_is_reported(self):
-        async def handler(socket):
+    async def test_cdp_error_is_reported(self) -> None:
+        async def handler(socket: ServerConnection) -> None:
             request = json.loads(await socket.recv())
             await socket.send(
                 json.dumps(
@@ -76,10 +82,10 @@ class TransportTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(caught.exception.code, "devtools_error")
         self.assertEqual(caught.exception.details["error"]["code"], -32601)
 
-    async def test_disconnect_fails_pending_requests_without_replaying(self):
-        received = []
+    async def test_disconnect_fails_pending_requests_without_replaying(self) -> None:
+        received: list[JsonObject] = []
 
-        async def handler(socket):
+        async def handler(socket: ServerConnection) -> None:
             received.append(json.loads(await socket.recv()))
             await socket.close()
 

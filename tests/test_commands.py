@@ -1,8 +1,8 @@
 import asyncio
 import json
 import unittest
-from types import SimpleNamespace
-from unittest.mock import AsyncMock
+from typing import cast
+from unittest.mock import AsyncMock, patch
 
 from remaldi.adapter import RUN_COMMAND, VivaldiAdapter
 from remaldi.commands import (
@@ -13,6 +13,7 @@ from remaldi.commands import (
     command_list,
 )
 from remaldi.errors import ControlError
+from remaldi.protocol import JsonObject
 from remaldi.service import Service
 
 ALWAYS_DENIED = {
@@ -33,11 +34,17 @@ ALWAYS_DENIED = {
 CHAIN_NAME = "COMMAND_ckinventedchainkey"
 
 
+class FakeController:
+    def __init__(self) -> None:
+        self.generation = 1
+        self.request = AsyncMock()
+
+
 class AllowlistTests(unittest.TestCase):
-    def test_allowlist_is_labelled_with_its_vivaldi_version(self):
+    def test_allowlist_is_labelled_with_its_vivaldi_version(self) -> None:
         self.assertEqual(VIVALDI_VERSION, "8.2.4133.84")
 
-    def test_registry_matches_the_guide_procedure_counts(self):
+    def test_registry_matches_the_guide_procedure_counts(self) -> None:
         # docs/VIVALDI_CONTROL_SURFACE.md: 339 registered commands on 8.2.
         self.assertEqual(len(REGISTERED_COMMANDS), 339)
         self.assertTrue(all(name.startswith("COMMAND_") for name in REGISTERED_COMMANDS))
@@ -47,13 +54,13 @@ class AllowlistTests(unittest.TestCase):
         for name in ["COMMAND_INITIALIZE", "COMMAND_WORKSPACE_SWITCH_", "COMMAND_CHAIN"]:
             self.assertNotIn(name, REGISTERED_COMMANDS)
 
-    def test_always_denied_names_are_denied(self):
+    def test_always_denied_names_are_denied(self) -> None:
         self.assertEqual(DENIED.keys(), ALWAYS_DENIED)
         self.assertLessEqual(DENIED.keys(), REGISTERED_COMMANDS | LOCAL_ACTIONS.keys())
 
-    def test_command_list_has_names_and_allowed_flags_without_bindings(self):
+    def test_command_list_has_names_and_allowed_flags_without_bindings(self) -> None:
         entries = command_list()
-        names = [entry["name"] for entry in entries]
+        names = [cast("str", entry["name"]) for entry in entries]
         self.assertEqual(names, sorted(set(names)))
         self.assertEqual(set(names), REGISTERED_COMMANDS | LOCAL_ACTIONS.keys())
         for entry in entries:
@@ -79,12 +86,17 @@ class AllowlistTests(unittest.TestCase):
 
 
 class RunCommandTests(unittest.IsolatedAsyncioTestCase):
-    def adapter(self, result=..., windows=None, capabilities=None):
-        state = {
+    def adapter(
+        self,
+        result: object = ...,
+        windows: list[JsonObject] | None = None,
+        capabilities: JsonObject | None = None,
+    ) -> tuple[VivaldiAdapter, FakeController]:
+        state: JsonObject = {
             "windows": windows or [{"id": 7, "focused": True}],
             "capabilities": capabilities or {"command_dispatch": True},
         }
-        controller = SimpleNamespace(generation=1, request=AsyncMock())
+        controller = FakeController()
         controller.request.side_effect = [
             {"result": {"value": state}},
             {"result": {"value": {"dispatched": True} if result is ... else result}},
@@ -92,17 +104,17 @@ class RunCommandTests(unittest.IsolatedAsyncioTestCase):
         ]
         return VivaldiAdapter(controller), controller
 
-    def evaluated(self, controller):
+    def evaluated(self, controller: FakeController) -> list[str]:
         return [call.args[1]["expression"] for call in controller.request.await_args_list]
 
-    def dispatches(self, controller):
+    def dispatches(self, controller: FakeController) -> list[str]:
         return [
             expression
             for expression in self.evaluated(controller)
             if "vivaldi.menubar.onActivated.dispatch(" in expression
         ]
 
-    async def test_allowed_command_dispatches_once_with_empty_parameter(self):
+    async def test_allowed_command_dispatches_once_with_empty_parameter(self) -> None:
         adapter, controller = self.adapter()
         result = await adapter.run_command("COMMAND_MAIN_TOGGLE_TAB_BAR")
         self.assertEqual(result, {"dispatched": True})
@@ -114,13 +126,13 @@ class RunCommandTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("vivaldi.menubar.onActivated.dispatch(windowId, name, parameter)", expression)
         self.assertEqual(controller.request.await_count, 2)
 
-    async def test_dispatch_invalidates_state(self):
+    async def test_dispatch_invalidates_state(self) -> None:
         adapter, controller = self.adapter()
         await adapter.run_command("COMMAND_MAIN_TOGGLE_TAB_BAR")
         await adapter.snapshot()
         self.assertEqual(controller.request.await_count, 3)
 
-    async def test_checks_chains_and_window_before_dispatch_in_one_expression(self):
+    async def test_checks_chains_and_window_before_dispatch_in_one_expression(self) -> None:
         adapter, controller = self.adapter()
         await adapter.run_command("COMMAND_PAGE_TOGGLE_MUTE")
         expression = self.evaluated(controller)[1]
@@ -145,7 +157,7 @@ class RunCommandTests(unittest.IsolatedAsyncioTestCase):
                 self.assertLess(expression.index(rejection), dispatch)
         self.assertGreater(expression.index("return { dispatched: true }"), dispatch)
 
-    async def test_denied_names_never_reach_the_browser(self):
+    async def test_denied_names_never_reach_the_browser(self) -> None:
         for name in sorted(DENIED):
             with self.subTest(name=name):
                 adapter, controller = self.adapter()
@@ -155,7 +167,7 @@ class RunCommandTests(unittest.IsolatedAsyncioTestCase):
                 self.assertEqual(caught.exception.details, {"name": name})
                 controller.request.assert_not_awaited()
 
-    async def test_unknown_and_chain_names_never_reach_the_browser(self):
+    async def test_unknown_and_chain_names_never_reach_the_browser(self) -> None:
         names = [
             CHAIN_NAME,
             "COMMAND_INITIALIZE",
@@ -175,7 +187,7 @@ class RunCommandTests(unittest.IsolatedAsyncioTestCase):
                 self.assertIn(VIVALDI_VERSION, str(caught.exception))
                 controller.request.assert_not_awaited()
 
-    async def test_invalid_names_are_rejected_before_browser_call(self):
+    async def test_invalid_names_are_rejected_before_browser_call(self) -> None:
         for name in [None, "", 3, True, ["COMMAND_PIN_TAB"]]:
             with self.subTest(name=name):
                 adapter, controller = self.adapter()
@@ -184,8 +196,8 @@ class RunCommandTests(unittest.IsolatedAsyncioTestCase):
                 self.assertEqual(caught.exception.code, "invalid_parameters")
                 controller.request.assert_not_awaited()
 
-    async def test_chain_sharing_the_name_is_a_structured_rejection(self):
-        adapter, controller = self.adapter({"rejected": "chain_name"})
+    async def test_chain_sharing_the_name_is_a_structured_rejection(self) -> None:
+        adapter, _ = self.adapter({"rejected": "chain_name"})
         with self.assertRaises(ControlError) as caught:
             await adapter.run_command("JS_LOCAL_REOPEN_CLOSED_TAB", parameter="invented")
         self.assertEqual(caught.exception.code, "chain_not_allowed")
@@ -193,7 +205,7 @@ class RunCommandTests(unittest.IsolatedAsyncioTestCase):
             caught.exception.details, {"name": "JS_LOCAL_REOPEN_CLOSED_TAB", "window_id": 7}
         )
 
-    async def test_local_action_passes_its_parameter(self):
+    async def test_local_action_passes_its_parameter(self) -> None:
         cases = [
             ("JS_LOCAL_ACTIVATE_TAB", "42", "42"),
             ("JS_LOCAL_ACTIVATE_TAB", "0042", "42"),
@@ -213,7 +225,7 @@ class RunCommandTests(unittest.IsolatedAsyncioTestCase):
                 self.assertIn(f"const name = {json.dumps(name)};", expression)
                 self.assertIn(f"const parameter = {json.dumps(sent)};", expression)
 
-    async def test_placeholder_text_in_a_parameter_is_sent_verbatim(self):
+    async def test_placeholder_text_in_a_parameter_is_sent_verbatim(self) -> None:
         for parameter in [
             "https://example.com/__WINDOW_ID__",
             "https://example.com/__NAME__/__PARAMETER__",
@@ -226,7 +238,7 @@ class RunCommandTests(unittest.IsolatedAsyncioTestCase):
                 self.assertIn("const windowId = 7;", expression)
                 self.assertIn('const name = "COMMAND_OPEN_LINK";', expression)
 
-    async def test_parameter_applies_only_to_local_actions(self):
+    async def test_parameter_applies_only_to_local_actions(self) -> None:
         for parameter in ["1", ""]:
             with self.subTest(parameter=parameter):
                 adapter, controller = self.adapter()
@@ -235,14 +247,14 @@ class RunCommandTests(unittest.IsolatedAsyncioTestCase):
                 self.assertEqual(caught.exception.code, "invalid_parameters")
                 controller.request.assert_not_awaited()
 
-    async def test_local_actions_require_a_valid_parameter(self):
+    async def test_local_actions_require_a_valid_parameter(self) -> None:
         cases = [
             ("JS_LOCAL_ACTIVATE_TAB", None),
             ("JS_LOCAL_ACTIVATE_TAB", ""),
             ("JS_LOCAL_ACTIVATE_TAB", "-1"),
             ("JS_LOCAL_ACTIVATE_TAB", "1.5"),
             ("JS_LOCAL_ACTIVATE_TAB", "1; dangerous()"),
-            ("JS_LOCAL_ACTIVATE_TAB", "١"),
+            ("JS_LOCAL_ACTIVATE_TAB", "\u0661"),
             ("JS_LOCAL_ACTIVATE_TAB", str(2**53)),
             ("JS_LOCAL_ACTIVATE_TAB", 42),
             ("COMMAND_OPEN_LINK", None),
@@ -260,7 +272,7 @@ class RunCommandTests(unittest.IsolatedAsyncioTestCase):
                 self.assertEqual(caught.exception.code, "invalid_parameters")
                 controller.request.assert_not_awaited()
 
-    async def test_window_selection_matches_workspace_switching(self):
+    async def test_window_selection_matches_workspace_switching(self) -> None:
         windows = [{"id": 7, "focused": False}, {"id": 9, "focused": True}]
         adapter, controller = self.adapter(windows=windows)
         await adapter.run_command("COMMAND_PIN_TAB")
@@ -285,7 +297,7 @@ class RunCommandTests(unittest.IsolatedAsyncioTestCase):
                 self.assertEqual(controller.request.await_count, 1)
                 self.assertEqual(self.dispatches(controller), [])
 
-    async def test_browser_rejections_are_structured_errors_without_replay(self):
+    async def test_browser_rejections_are_structured_errors_without_replay(self) -> None:
         cases = {
             "minimized_window": "minimized_window",
             "window_unavailable": "invalid_parameters",
@@ -306,7 +318,7 @@ class RunCommandTests(unittest.IsolatedAsyncioTestCase):
                 await adapter.snapshot()
                 self.assertEqual(controller.request.await_count, 3)
 
-    async def test_unexpected_result_is_not_success(self):
+    async def test_unexpected_result_is_not_success(self) -> None:
         for value in [None, {}, {"dispatched": False}, {"dispatched": 1}, {"rejected": "x"}, [1]]:
             with self.subTest(value=value):
                 adapter, controller = self.adapter(value)
@@ -315,7 +327,7 @@ class RunCommandTests(unittest.IsolatedAsyncioTestCase):
                 self.assertEqual(caught.exception.code, "unsupported_result")
                 self.assertEqual(controller.request.await_count, 2)
 
-    async def test_lost_reply_invalidates_state_without_replay(self):
+    async def test_lost_reply_invalidates_state_without_replay(self) -> None:
         adapter, controller = self.adapter()
         state = {
             "windows": [{"id": 7, "focused": True}],
@@ -333,14 +345,14 @@ class RunCommandTests(unittest.IsolatedAsyncioTestCase):
         await adapter.snapshot()
         self.assertEqual(controller.request.await_count, 3)
 
-    async def test_unsupported_dispatch_has_no_mutation(self):
+    async def test_unsupported_dispatch_has_no_mutation(self) -> None:
         adapter, controller = self.adapter(capabilities={"command_dispatch": False})
         with self.assertRaises(ControlError) as caught:
             await adapter.run_command("COMMAND_MAIN_TOGGLE_TAB_BAR")
         self.assertEqual(caught.exception.code, "unsupported_operation")
         self.assertEqual(controller.request.await_count, 1)
 
-    async def test_commands_serialize_with_other_mutations(self):
+    async def test_commands_serialize_with_other_mutations(self) -> None:
         adapter, controller = self.adapter()
         await adapter.mutation_lock.acquire()
         try:
@@ -352,29 +364,33 @@ class RunCommandTests(unittest.IsolatedAsyncioTestCase):
             adapter.mutation_lock.release()
         self.assertEqual(await task, {"dispatched": True})
 
-    def test_expression_template_placeholders(self):
+    def test_expression_template_placeholders(self) -> None:
         for placeholder in ["__NAME__", "__PARAMETER__", "__WINDOW_ID__"]:
             self.assertEqual(RUN_COMMAND.count(placeholder), 1)
 
 
 class CommandServiceTests(unittest.IsolatedAsyncioTestCase):
-    async def test_command_list_needs_no_browser(self):
+    async def test_command_list_needs_no_browser(self) -> None:
         service = Service("http://127.0.0.1:1")
-        service.browser.request = AsyncMock()
+        request = self.enterContext(patch.object(service.browser, "request", AsyncMock()))
         result = await service.dispatch({"version": 1, "operation": "command.list"})
         self.assertEqual(result["vivaldi_version"], VIVALDI_VERSION)
         self.assertEqual(result["commands"], command_list())
-        service.browser.request.assert_not_awaited()
+        request.assert_not_awaited()
 
-    async def test_command_run_validates_and_forwards_parameters(self):
+    async def test_command_run_validates_and_forwards_parameters(self) -> None:
         service = Service("http://127.0.0.1:1")
-        service.adapter.run_command = AsyncMock(return_value={"dispatched": True})
+        run_command = self.enterContext(
+            patch.object(
+                service.adapter, "run_command", AsyncMock(return_value={"dispatched": True})
+            )
+        )
         params = {"name": "COMMAND_PIN_TAB", "parameter": None, "window_id": 7}
         result = await service.dispatch(
             {"version": 1, "operation": "command.run", "params": params}
         )
         self.assertEqual(result, {"dispatched": True})
-        service.adapter.run_command.assert_awaited_once_with(**params)
+        run_command.assert_awaited_once_with(**params)
         for bad in [{}, {"name": "COMMAND_PIN_TAB", "binding": "x"}]:
             with self.subTest(params=bad), self.assertRaises(ControlError) as caught:
                 await service.dispatch({"version": 1, "operation": "command.run", "params": bad})

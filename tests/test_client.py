@@ -9,12 +9,12 @@ from remaldi.protocol import MAX_MESSAGE
 
 
 class ClientTests(unittest.IsolatedAsyncioTestCase):
-    async def test_reads_response_larger_than_default_stream_limit(self):
+    async def test_reads_response_larger_than_default_stream_limit(self) -> None:
         with tempfile.TemporaryDirectory(prefix="remaldi-wire-", dir="/tmp") as directory:
             path = Path(directory)
             payload = {"tabs": "x" * (128 * 1024)}
 
-            async def handle(reader, writer):
+            async def handle(reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
                 try:
                     request = json.loads(await reader.readline())
                     writer.write(
