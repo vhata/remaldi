@@ -1,5 +1,28 @@
 # Decisions
 
+## 2026-10-13: Use the regular profile's UI target and leave out Private windows
+
+A Private window adds an incognito `main.html` target whose `chrome.windows`
+sees only incognito windows. Remaldi used to connect to whichever `main.html`
+came first in `/json/list`, so with a Private window open it could list and
+dispatch to the Private window alone. When there is more than one `main.html`,
+the service now evaluates `chrome.extension.inIncognitoContext` in each on a
+short-lived connection, with no event hooks, and connects to the first that
+returns `false`. Results are cached per target ID and WebSocket URL. A failed
+or non-boolean probe is retried after 30 seconds rather than on every refresh,
+because probes run under the browser lock and a hung target would otherwise
+stall requests each second; while the selected target is still listed and
+regular, it is kept without probing the others. Switching to a different UI
+target invalidates cached state and replaces any hookless connection to it
+(left by `raw --target`) with one that installs the event hooks. A single
+`main.html` is used without probing, as before.
+
+Private windows are therefore invisible to `state`, `workspace switch` and
+`command run`. Covering them means a connection per context, merged state and
+dispatch routed to the owning context, which is recorded as
+`per-profile-ui-contexts` in `TODO.md`. With several regular profiles the first
+non-incognito target still wins, which is no worse than before.
+
 ## 2026-10-13: Curate the command allowlist from Vivaldi's bundle
 
 `command run` dispatches only names in `remaldi/commands.py`: the command

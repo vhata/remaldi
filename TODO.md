@@ -40,6 +40,25 @@ before calling ready work available. Priorities were set in triage on 2026-10-11
 
 ### Unprioritized
 
+- [BROWSER] `per-profile-ui-contexts` — **Report and control windows in every UI context, Private windows included.** Remaldi uses only the regular profile's `main.html`, so Private windows (and any other profile) are invisible to `state`, `workspace switch` and `command run`.
+  - Source: `regular-profile-ui-target` fix, 2026-10-13.
+  - Starting point: `_select_ui` in `browser.py`; the decision entry of
+    2026-10-13 in docs/DECISIONS.md.
+  - Open questions: whether Private windows should be controllable at all;
+    whether `vivaldi.menubar.onActivated.dispatch` from one context reaches a
+    window owned by another; how snapshots, event hooks and invalidation work
+    with one connection per context; how several regular profiles are told
+    apart.
+
+- [CLIENT] `list-window-ids` — **Add a command that lists window IDs for `--window-id`.** `workspace switch` and `command run` both take `--window-id`, and the only way to find one is to filter `state` output with `jq` as the README shows.
+  - Source: user request during the `regular-profile-ui-target` fix, 2026-10-13.
+  - Starting point: `_select_window` in `adapter.py`; the `windows` field of
+    the snapshot; `__main__.py`.
+  - Shape to decide: a `remaldi window list` command (or similar) printing
+    each window's `id`, `focused`, `state`, `type` and tab count, with no tab
+    titles or URLs; whether it marks the window the focused-window default
+    would select.
+
 - [ACCEPTANCE] `verify-live-command-dispatch` — **Validate a named command dispatch in a running Vivaldi browser.** `command run` success confirms dispatch only, and its tests read the evaluated JavaScript as text without running it.
   - Source: `dispatch-named-commands` PR, 2026-10-13; the live toggle in
     that entry's acceptance was reported as a limitation.

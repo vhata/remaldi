@@ -54,6 +54,17 @@ and Vivaldi's own UI. The UI is a built-in extension with ID
 How several browser windows map onto `window.html` targets is Unverified. The
 probe ran with one window open.
 
+Each profile context has its own `main.html`. With a Private window open,
+`/json/list` showed two `main.html` targets, and `chrome.windows.getAll` in the
+one Remaldi had picked returned only the Private window, while
+`vivaldi.workspaces.list` still returned the regular profile's workspaces
+(reported by the user on 2026-10-13, Vivaldi 8.2). The order of the two targets
+in `/json/list` is not documented. Remaldi tells them apart with
+`chrome.extension.inIncognitoContext` (Unverified against Vivaldi: the expected
+`true` and `false` values have not been observed). Several regular profiles
+would also give several non-incognito `main.html` targets; that case is
+Unverified too.
+
 To get the WebSocket URL of the API target:
 
 ```bash
