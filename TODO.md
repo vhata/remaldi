@@ -134,6 +134,3 @@ before calling ready work available. Priorities were set in triage on 2026-10-11
     (events carry URLs and titles).
 
 ## Ready for separate work
-
-### P2 Normal
-
