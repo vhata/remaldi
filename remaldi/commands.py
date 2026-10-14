@@ -404,6 +404,7 @@ DENIED = {
     "COMMAND_MAIL_DELETE_PERMANENTLY": "permanently deletes mail",
     "COMMAND_EXPORT_PASSWORDS": "exports saved passwords",  # pragma: allowlist secret
     "COMMAND_MANAGE_PEOPLE": "opens profile management",
+    "COMMAND_NEW_GUEST_WINDOW": "switches to a guest session",
     "JS_LOCAL_CLEAR_CLOSED_TABS": "empties the closed tabs list",
     "JS_LOCAL_CLEAR_CLOSED_WEBPANELS": "empties the closed web panels list",
     "JS_LOCAL_ACTIVATE_WORKSPACE": (

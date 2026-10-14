@@ -24,6 +24,8 @@ ALWAYS_DENIED = {
     "COMMAND_MANAGE_PEOPLE",
     "JS_LOCAL_CLEAR_CLOSED_TABS",
     "JS_LOCAL_CLEAR_CLOSED_WEBPANELS",
+    "COMMAND_NEW_GUEST_WINDOW",
+    "JS_LOCAL_ACTIVATE_WORKSPACE",
 }
 
 # Vivaldi names a chain COMMAND_ plus a generated key, so a chain name looks
@@ -46,7 +48,7 @@ class AllowlistTests(unittest.TestCase):
             self.assertNotIn(name, REGISTERED_COMMANDS)
 
     def test_always_denied_names_are_denied(self):
-        self.assertLessEqual(ALWAYS_DENIED, DENIED.keys())
+        self.assertEqual(DENIED.keys(), ALWAYS_DENIED)
         self.assertLessEqual(DENIED.keys(), REGISTERED_COMMANDS | LOCAL_ACTIONS.keys())
 
     def test_command_list_has_names_and_allowed_flags_without_bindings(self):

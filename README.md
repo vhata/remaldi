@@ -69,8 +69,9 @@ and needs no browser connection.
 Some names are always refused with `command_denied`: `COMMAND_EXIT`,
 `COMMAND_QUIT_MAC_MAYBE_WARN`, `COMMAND_CLOSE_WINDOW`,
 `COMMAND_MAIL_DELETE_PERMANENTLY`, `COMMAND_EXPORT_PASSWORDS`,
-`COMMAND_MANAGE_PEOPLE`, `JS_LOCAL_CLEAR_CLOSED_TABS`,
-`JS_LOCAL_CLEAR_CLOSED_WEBPANELS`, and `JS_LOCAL_ACTIVATE_WORKSPACE`, which
+`COMMAND_MANAGE_PEOPLE`, `COMMAND_NEW_GUEST_WINDOW` (it switches to a guest
+session), `JS_LOCAL_CLEAR_CLOSED_TABS`, `JS_LOCAL_CLEAR_CLOSED_WEBPANELS`, and
+`JS_LOCAL_ACTIVATE_WORKSPACE`, which
 creates a tab for an unknown ID (use `workspace switch`). Any other name fails
 with `unknown_command`. User-defined command chains are never dispatched,
 because their steps could run any command, including the denied ones.

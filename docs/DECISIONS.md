@@ -12,9 +12,11 @@ diffs directly against a regenerated `registered.txt`. The cost is a manual
 refresh after each Vivaldi update; a name Vivaldi drops stays listed and
 dispatches to nothing.
 
-`JS_LOCAL_ACTIVATE_WORKSPACE` is denied as well as the names the queue entry
-listed. Dispatched directly it creates a tab for an unknown ID, and
-`workspace switch` already checks the ID first. Local actions must have a
+Two names are denied as well as the ones the queue entry listed.
+`JS_LOCAL_ACTIVATE_WORKSPACE`, dispatched directly, creates a tab for an
+unknown ID, and `workspace switch` already checks the ID first.
+`COMMAND_NEW_GUEST_WINDOW` calls `vivaldi.runtimePrivate.switchToGuestSession`,
+which the control-surface guide lists under browser lifecycle. Local actions must have a
 parameter: without one Vivaldi's handler declines and the name falls through
 to the registry and then to a chain lookup.
 
