@@ -10,12 +10,12 @@ it is not part of the supported client.
 
 ## Run
 
-Requires Python 3.12 or newer on macOS or Linux. Install into a virtual environment:
+Requires Python 3.12 or newer on macOS or Linux. Install the command with
+[uv](https://docs.astral.sh/uv/) (`pip install .` into a virtual environment
+also works):
 
 ```bash
-python3.12 -m venv .venv
-source .venv/bin/activate
-python -m pip install -e .
+uv tool install .
 remaldi status
 remaldi state
 remaldi workspace switch WORKSPACE_ID
@@ -26,8 +26,9 @@ remaldi evaluate 'chrome.windows.getCurrent()' --await-promise --return-by-value
 remaldi stop
 ```
 
-`python -m remaldi` and the checkout launcher `./bin/remaldi` accept the same
-commands when their interpreter has the dependencies installed. `serve` runs in the foreground
+From a checkout, `uv run remaldi`, `python -m remaldi` and the checkout
+launcher `./bin/remaldi` accept the same commands when their interpreter has the
+dependencies installed. `serve` runs in the foreground
 for debugging. `status` and `stop` never start a missing service. Output is JSON;
 errors go to stderr and return a nonzero exit status.
 
