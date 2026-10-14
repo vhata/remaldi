@@ -39,6 +39,15 @@ executables() {
 }
 
 # Python formatting, lint and types.
+echo "DEBUG ls-files count: $(git ls-files | wc -l)"
+git ls-files -- scripts | head -5
+echo "DEBUG glob:"
+git ls-files -- 'scripts/*.sh' | head -3
+echo "DEBUG excl:"
+git ls-files -- 'scripts/*.sh' ':!docket' | head -3
+echo "DEBUG env:"
+env | grep -i -E '^GIT_|LITERAL|ICASE' || true
+git config --list --show-origin | grep -v -i -E 'token|extraheader|url' | head -20
 run ruff format --check .
 run ruff check .
 run mypy
