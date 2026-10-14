@@ -113,22 +113,19 @@ COMMAND_REJECTIONS = {
     ),
 }
 
-MAX_WORKSPACE_ID = 2**53 - 1
 MAX_PARAMETER_LENGTH = 8192
 
 
 def workspace_parameter(workspace_id: object) -> str:
     """Return the canonical decimal form of a workspace ID, or raise."""
-    value = -1
-    if isinstance(workspace_id, int) and not isinstance(workspace_id, bool):
-        value = workspace_id
-    elif isinstance(workspace_id, str) and workspace_id.isascii() and workspace_id.isdigit():
-        digits = workspace_id.lstrip("0") or "0"
-        if len(digits) <= len(str(MAX_WORKSPACE_ID)):
-            value = int(digits)
-    if not 0 <= value <= MAX_WORKSPACE_ID:
+    canonical = None
+    if isinstance(workspace_id, int) and _safe_id(workspace_id) is not None:
+        canonical = str(workspace_id)
+    elif isinstance(workspace_id, str):
+        canonical = _decimal(workspace_id)
+    if canonical is None:
         raise ControlError("invalid_parameters", "workspace_id must be a nonnegative decimal ID.")
-    return str(value)
+    return canonical
 
 
 def _fill(template: str, **values: str) -> str:
