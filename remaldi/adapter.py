@@ -27,7 +27,7 @@ SNAPSHOT = """(async () => {
      });
    } catch (error) { resolve({error:String(error?.message ?? error)}); }
  }) : null;
- return {windows, workspace_preference:workspacePreference, capabilities:{windows:true, tabs:true, workspace_switch:switchSupported, command_dispatch:switchSupported}};
+ return {windows, workspace_preference:workspacePreference, capabilities:{windows:true, tabs:true, workspace_switch:switchSupported, command_dispatch:switchSupported && prefsSupported}};
 })()"""
 
 # Checks and dispatch run in one evaluation, so the workspace list and window
