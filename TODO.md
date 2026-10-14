@@ -58,6 +58,21 @@ before calling ready work available. Priorities were set in triage on 2026-10-11
     each window's `id`, `focused`, `state`, `type` and tab count, with no tab
     titles or URLs; whether it marks the window the focused-window default
     would select.
+  - Related: `last-focused-window-default`
+
+- [STATE] `last-focused-window-default` — **Default `workspace switch` and `command run` to the most recently focused Vivaldi window.** The default now needs exactly one window with `focused: true`, and Chrome sets that only while Vivaldi has OS focus, so running `remaldi` from a terminal in front of Vivaldi fails with `ambiguous_window` in what the user expects to be the most common case.
+  - Source: user request, 2026-10-13, after the `regular-profile-ui-target` fix.
+  - Starting point: `_select_window` in `adapter.py`; the
+    `chrome.windows.onFocusChanged` hook in `EVENT_HOOKS` (`browser.py`);
+    `chrome.windows.getLastFocused`.
+  - Open questions: whether `getLastFocused` returns the last Vivaldi window
+    while another app has focus, or whether the UI context must record focus
+    changes itself (and what happens after a service or UI reload, before any
+    focus change is seen); how minimized windows and windows closed since are
+    handled; whether `state` should mark the window the default would pick.
+  - Unverified: `focused` being false for every window while another app is
+    frontmost is Chrome's documented behaviour, not observed in Vivaldi.
+  - Related: `list-window-ids`
 
 - [ACCEPTANCE] `verify-live-command-dispatch` — **Validate a named command dispatch in a running Vivaldi browser.** `command run` success confirms dispatch only, and its tests read the evaluated JavaScript as text without running it.
   - Source: `dispatch-named-commands` PR, 2026-10-13; the live toggle in
