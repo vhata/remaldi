@@ -4,6 +4,9 @@ from pathlib import Path
 
 from .errors import ControlError
 
+# Size of sun_path on macOS, including the terminating NUL.
+SOCKET_PATH_LIMIT = 104
+
 
 def runtime_dir() -> Path:
     path = Path(os.environ.get("REMALDI_RUNTIME_DIR", str(Path.home() / "Library/Caches/remaldi")))
@@ -14,7 +17,7 @@ def runtime_dir() -> Path:
             "unsafe_runtime_directory",
             "Runtime directory must be owned by this user with mode 0700.",
         )
-    if len(os.fsencode(path / "control.sock")) >= 104:
+    if len(os.fsencode(path / "control.sock")) >= SOCKET_PATH_LIMIT:
         raise ControlError(
             "runtime_path_too_long",
             "Choose a shorter REMALDI_RUNTIME_DIR for the Unix socket.",
@@ -22,7 +25,7 @@ def runtime_dir() -> Path:
     return path
 
 
-def lock_file(path: Path, blocking: bool = True) -> int:
+def lock_file(path: Path, *, blocking: bool = True) -> int:
     fd = os.open(path, os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW, 0o600)
     try:
         fcntl.flock(fd, fcntl.LOCK_EX | (0 if blocking else fcntl.LOCK_NB))

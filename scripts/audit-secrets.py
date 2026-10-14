@@ -6,7 +6,7 @@ import subprocess
 import tempfile
 from pathlib import Path
 
-from detect_secrets import SecretsCollection
+from detect_secrets.core.secrets_collection import SecretsCollection
 from detect_secrets.settings import default_settings
 
 
