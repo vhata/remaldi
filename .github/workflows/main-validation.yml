@@ -11,29 +11,37 @@ permissions:
 concurrency:
   group: main-validation-${{ github.ref }}
   cancel-in-progress: false
+env:
+  UV_VERSION: '0.13.0'
 jobs:
   validate:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
-      - uses: actions/setup-python@v5
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
         with:
-          python-version: '3.12'
-          cache: pip
-      - run: python -m pip install -e '.[dev]'
+          version: ${{ env.UV_VERSION }}
+          enable-cache: true
+      - run: uv sync --locked
       - run: scripts/check.sh
-      - run: python -m build
+      - run: uv build
+      # Known vulnerabilities in the locked dependencies, dev group included.
+      - name: Dependency audit
+        shell: bash
+        run: scripts/audit-dependencies.sh | tee dependency-audit.txt
       - name: Report review drift
         shell: bash
         run: bash docket/scripts/review-due.sh --paths "remaldi tests" | tee review-due.txt
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         with:
           name: validation-evidence
           path: |
+            dependency-audit.txt
             review-due.txt
             dist/*
           retention-days: 7
