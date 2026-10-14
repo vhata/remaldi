@@ -1,4 +1,5 @@
 import asyncio
+import contextlib
 import json
 import urllib.error
 import urllib.request
@@ -10,6 +11,11 @@ from .transport import CDPConnection
 
 UI_SUFFIX = "mpognobbkildjkofajifpdfhcoklimli/main.html"
 EVENT_SETUP_TIMEOUT = 2
+# Each profile context has its own main.html, and a Private window adds an incognito
+# one whose chrome.windows only sees incognito windows. Order in /json/list is not
+# stable, so a candidate is classified before it is chosen.
+INCOGNITO_PROBE = "chrome.extension.inIncognitoContext"
+INCOGNITO_PROBE_TIMEOUT = 2
 
 # Hooks survive in the UI document across service restarts, so a changed hook set bumps
 # the version and replaces listeners installed by an earlier one. Each listener is
@@ -59,6 +65,8 @@ class Browser:
         self.on_change: Callable[[], None] = lambda: None
         self.lock = asyncio.Lock()
         self.event_support = "unavailable"
+        self.ui_target_id: str | None = None
+        self.incognito: dict[tuple[str, str], bool] = {}
 
     def _discover(self) -> list[JsonObject]:
         # Local discovery must not inherit HTTP proxy configuration.
@@ -86,14 +94,13 @@ class Browser:
                         del self.connections[identifier]
                         self.generation += 1
                         self.on_change()
-                ui = next(
-                    (target for target in targets if UI_SUFFIX in target.get("url", "")),
-                    None,
-                )
+                ui = await self._select_ui(targets)
                 if ui is None:
+                    self.ui_target_id = None
                     self.state = "ui_target_unavailable"
                     self.detail = "Debugger responds, but Vivaldi UI target is unavailable."
                     return
+                self.ui_target_id = ui["id"]
                 await self._connection(ui)
                 self.state, self.detail = "connected", "Vivaldi UI connected."
             except Exception as exc:
@@ -104,6 +111,44 @@ class Browser:
                 )
                 self.detail = str(exc)
                 await self.close()
+
+    async def _select_ui(self, targets: list[JsonObject]) -> JsonObject | None:
+        """Return the regular profile's UI target, skipping incognito contexts."""
+        candidates = [target for target in targets if UI_SUFFIX in target.get("url", "")]
+        if len(candidates) <= 1:
+            return candidates[0] if candidates else None
+        keys = {(target["id"], target.get("webSocketDebuggerUrl", "")) for target in candidates}
+        self.incognito = {key: value for key, value in self.incognito.items() if key in keys}
+        for target in candidates:
+            key = (target["id"], target.get("webSocketDebuggerUrl", ""))
+            incognito = self.incognito.get(key)
+            if incognito is None:
+                # A failed probe is not cached, so the next refresh retries it.
+                incognito = await self._probe_incognito(target)
+                if incognito is not None:
+                    self.incognito[key] = incognito
+            if incognito is False:
+                return target
+        return None
+
+    async def _probe_incognito(self, target: JsonObject) -> bool | None:
+        """Classify a UI target on a short-lived connection without installing hooks."""
+        url = target.get("webSocketDebuggerUrl")
+        if not url:
+            return None
+        connection = CDPConnection(url, timeout=INCOGNITO_PROBE_TIMEOUT)
+        try:
+            await connection.connect()
+            result = await connection.request(
+                "Runtime.evaluate", {"expression": INCOGNITO_PROBE, "returnByValue": True}
+            )
+        except Exception:
+            return None
+        finally:
+            with contextlib.suppress(Exception):
+                await connection.close()
+        value = result.get("result", {}).get("value")
+        return value if isinstance(value, bool) else None
 
     async def _connection(self, target: JsonObject) -> CDPConnection:
         identifier = target["id"]
@@ -126,7 +171,7 @@ class Browser:
             self.connections[identifier] = connection
             self.generation += 1
             self.on_change()
-            if UI_SUFFIX in target.get("url", ""):
+            if identifier == self.ui_target_id:
                 try:
                     async with asyncio.timeout(EVENT_SETUP_TIMEOUT):
                         await connection.request("Runtime.enable")
@@ -152,7 +197,7 @@ class Browser:
                 (
                     item
                     for item in self.targets
-                    if (item.get("id") == target if target else UI_SUFFIX in item.get("url", ""))
+                    if item.get("id") == (target if target else self.ui_target_id)
                 ),
                 None,
             )
@@ -182,6 +227,7 @@ class Browser:
                 *(item.close() for item in connections.values()), return_exceptions=True
             )
         self.targets = []
+        self.ui_target_id = None
 
     async def monitor(self) -> None:
         delay = 0.25

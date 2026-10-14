@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock, patch
 from websockets.asyncio.server import serve
 
 from remaldi.adapter import VivaldiAdapter
-from remaldi.browser import EVENT_HOOKS, UI_SUFFIX, Browser
+from remaldi.browser import EVENT_HOOKS, INCOGNITO_PROBE, UI_SUFFIX, Browser
 from remaldi.errors import ControlError
 
 
@@ -15,13 +15,23 @@ class BrowserTests(unittest.IsolatedAsyncioTestCase):
         self.received = []
         self.sockets = []
         self.reject_subscription = False
+        self.received_by_path = {}
+        self.probe_values = {}
 
         async def handler(socket):
             self.sockets.append(socket)
             async for raw in socket:
                 request = json.loads(raw)
                 self.received.append(request)
-                if self.reject_subscription and request["method"] == "Runtime.enable":
+                path = socket.request.path.strip("/")
+                self.received_by_path.setdefault(path, []).append(request)
+                expression = request.get("params", {}).get("expression")
+                if expression == INCOGNITO_PROBE and path in self.probe_values:
+                    response = {
+                        "id": request["id"],
+                        "result": {"result": {"value": self.probe_values[path]}},
+                    }
+                elif self.reject_subscription and request["method"] == "Runtime.enable":
                     response = {
                         "id": request["id"],
                         "error": {"code": -32601, "message": "Unsupported"},
@@ -43,12 +53,59 @@ class BrowserTests(unittest.IsolatedAsyncioTestCase):
         self.browser = Browser("http://127.0.0.1:9222")
         self.addAsyncCleanup(self.browser.close)
 
-    def target(self, identifier):
+    def target(self, identifier, path=""):
         return {
             "id": identifier,
             "url": "chrome-extension://" + UI_SUFFIX,
-            "webSocketDebuggerUrl": self.url,
+            "webSocketDebuggerUrl": f"{self.url}/{path}" if path else self.url,
         }
+
+    def methods(self, path):
+        return [request["method"] for request in self.received_by_path.get(path, [])]
+
+    async def test_incognito_ui_target_is_skipped_for_regular_profile(self):
+        self.probe_values = {"incognito": True, "regular": False}
+        targets = [self.target("private", "incognito"), self.target("normal", "regular")]
+        with patch.object(self.browser, "_discover", return_value=targets):
+            await self.browser.refresh()
+            self.assertEqual(self.browser.state, "connected")
+            self.assertEqual(self.browser.ui_target_id, "normal")
+            self.assertEqual(list(self.browser.connections), ["normal"])
+            self.assertEqual(await self.browser.request("Browser.getVersion"), {"ok": True})
+            # Classification is cached, so later refreshes do not probe again.
+            await self.browser.refresh()
+        self.assertEqual(self.methods("incognito"), ["Runtime.evaluate"])
+        self.assertEqual(
+            self.methods("regular"),
+            [
+                "Runtime.evaluate",
+                "Runtime.enable",
+                "Runtime.addBinding",
+                "Runtime.evaluate",
+                "Browser.getVersion",
+            ],
+        )
+
+    async def test_only_incognito_ui_targets_leave_ui_unavailable(self):
+        self.probe_values = {"one": True, "two": True}
+        targets = [self.target("first", "one"), self.target("second", "two")]
+        with patch.object(self.browser, "_discover", return_value=targets):
+            await self.browser.refresh()
+        self.assertEqual(self.browser.state, "ui_target_unavailable")
+        self.assertEqual(self.browser.connections, {})
+        with self.assertRaises(ControlError) as caught:
+            await self.browser.request("Browser.getVersion")
+        self.assertEqual(caught.exception.code, "ui_target_unavailable")
+
+    async def test_unclassified_ui_target_is_skipped_and_probed_again(self):
+        # The default handler answers the probe with a non-boolean value.
+        self.probe_values = {"regular": False}
+        targets = [self.target("unknown", "unknown"), self.target("normal", "regular")]
+        with patch.object(self.browser, "_discover", return_value=targets):
+            await self.browser.refresh()
+            await self.browser.refresh()
+        self.assertEqual(self.browser.ui_target_id, "normal")
+        self.assertEqual(self.methods("unknown"), ["Runtime.evaluate", "Runtime.evaluate"])
 
     async def test_refresh_reuses_connection_then_replaces_disappeared_target(self):
         with patch.object(self.browser, "_discover", return_value=[self.target("first")]):

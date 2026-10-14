@@ -43,7 +43,15 @@ remaldi evaluate "new Promise(r => vivaldi.prefs.get('vivaldi.workspaces.list', 
 ```
 
 `--window-id` selects an explicit window; otherwise switching uses the uniquely
-focused window. In the same browser evaluation as the switch, Remaldi first checks
+focused window. Window IDs are the `id` fields of the `windows` that `state`
+returns:
+
+```bash
+remaldi state | jq '.windows[] | {id, focused, state}'
+```
+
+Private windows are not listed and cannot be selected (see
+[State and extension points](#state-and-extension-points)). In the same browser evaluation as the switch, Remaldi first checks
 that the ID is in that preference and that the window exists and is not minimized
 (Vivaldi would create a tab tagged with an unknown ID, and a minimized window
 ignores the action). Otherwise it fails with `unknown_workspace`,
@@ -96,7 +104,12 @@ cannot fix this by reconnecting. The daemon remains alive while unavailable.
 
 ## State and extension points
 
-`state` returns windows, their tabs, workspaces, and capabilities. Workspaces are
+`state` returns windows, their tabs, workspaces, and capabilities. Remaldi works
+through the regular profile's UI target, so `state` and dispatches cover that
+profile's windows only. A Private window gets an incognito UI target of its own;
+when several UI targets exist, Remaldi asks each whether it is incognito and
+uses the first that is not, and it leaves Private windows out. If none can be
+confirmed as regular, status reports `ui_target_unavailable`. Workspaces are
 read from Vivaldi's `vivaldi.workspaces.list` preference and listed as `{id, name,
 emoji}` (`emoji` is null when unset or empty). Each tab has a `workspace_id` taken
 from its `vivExtData`, or null for tabs in no workspace, web-panel tabs and
