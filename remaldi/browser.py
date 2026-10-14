@@ -166,7 +166,7 @@ class Browser:
             result = await connection.request(
                 "Runtime.evaluate", {"expression": INCOGNITO_PROBE, "returnByValue": True}
             )
-        except Exception:
+        except Exception:  # noqa: BLE001 - any failure leaves the target unclassified
             return None
         finally:
             with contextlib.suppress(Exception):
@@ -218,11 +218,7 @@ class Browser:
             await self.refresh()
         async with self.lock:
             selected = next(
-                (
-                    item
-                    for item in self.targets
-                    if item.get("id") == (target if target else self.ui_target_id)
-                ),
+                (item for item in self.targets if item.get("id") == (target or self.ui_target_id)),
                 None,
             )
             if selected is None:
