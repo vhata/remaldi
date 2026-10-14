@@ -1,6 +1,6 @@
 [build-system]
-requires = ["setuptools>=77"]
-build-backend = "setuptools.build_meta"
+requires = ["uv_build>=0.12,<0.14"]
+build-backend = "uv_build"
 
 [project]
 name = "remaldi"
@@ -12,28 +12,110 @@ license-files = ["LICENSE"]
 requires-python = ">=3.12"
 dependencies = ["websockets>=15,<18"]
 
-[project.optional-dependencies]
-dev = ["ruff==0.16.10", "mypy==2.4.0", "pre-commit==4.6.2", "build==1.6.1", "detect-secrets==1.5.0"]
-
 [project.scripts]
 remaldi = "remaldi.__main__:main"
 
-[tool.setuptools.packages.find]
-include = ["remaldi*"]
+[dependency-groups]
+dev = [
+  "basedpyright==1.40.2",
+  "coverage[toml]==7.16.2",
+  "detect-secrets==1.5.0",
+  "mypy==2.4.0",
+  "pre-commit==4.7.0",
+  "pre-commit-hooks==6.0.0",
+  "pytest==9.1.1",
+  "pytest-cov==7.1.0",
+  "pytest-timeout==2.4.0",
+  "ruff==0.17.0",
+  "shellcheck-py==0.11.0.1",
+  "shfmt-py==4.2.0",
+  "typos==1.51.1",
+  "zizmor==1.30.1",
+  "actionlint-py==1.7.12.25",
+]
+
+[tool.uv]
+required-version = ">=0.12"
+
+[tool.uv.build-backend]
+module-root = ""
 
 [tool.ruff]
 target-version = "py312"
 line-length = 100
 extend-include = ["bin/remaldi"]
+# Vendored workflow machinery and the historical Bash proof of concept.
+extend-exclude = ["docket", "reference"]
+
+[tool.ruff.format]
+docstring-code-format = true
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "UP", "B"]
-ignore = ["E501"]
+select = ["ALL"]
+ignore = [
+  # The formatter owns line length and trailing commas.
+  "E501",
+  "COM812",
+  # No docstring or per-file copyright convention.
+  "D",
+  "CPY001",
+  # Errors carry their message inline, as in ControlError(code, message).
+  "EM101",
+  "EM102",
+  "TRY003",
+  # Decoded JSON is typed Any at the DevTools and socket boundaries.
+  "ANN401",
+  # Asserts narrow types for invariants the code already guarantees.
+  "S101",
+  # Shape checks on decoded JSON raise ValueError, not TypeError.
+  "TRY004",
+  # Control-flow preferences that do not fit the existing error handling.
+  "TRY300",
+  "TRY301",
+  # Imports used only in annotations stay ordinary imports.
+  "TC",
+]
 
 [tool.ruff.lint.per-file-ignores]
-"bin/remaldi" = ["E402"]
+"bin/remaldi" = ["E402", "INP001"]
+# The argparse entry point prints JSON results.
+"remaldi/__main__.py" = ["C901", "PLR0915", "T201"]
+"scripts/*" = ["INP001", "S603", "S607", "T201"]
+# unittest-style tests with literal expectations.
+"tests/*" = ["INP001", "PT009", "PT027", "PLR2004", "S603", "SLF001"]
 
 [tool.mypy]
 python_version = "3.12"
-files = ["remaldi"]
+files = ["remaldi", "tests", "scripts"]
 strict = true
+warn_unreachable = true
+enable_error_code = [
+  "deprecated",
+  "ignore-without-code",
+  "possibly-undefined",
+  "redundant-expr",
+  "truthy-bool",
+]
+
+[tool.basedpyright]
+pythonVersion = "3.12"
+include = ["remaldi", "tests", "scripts", "bin"]
+typeCheckingMode = "standard"
+
+[tool.pytest]
+minversion = "9.0"
+testpaths = ["tests"]
+addopts = ["-ra", "--import-mode=importlib"]
+strict = true
+filterwarnings = ["error"]
+timeout = "60"
+
+[tool.coverage.run]
+branch = true
+source = ["remaldi"]
+patch = ["subprocess"]
+
+[tool.coverage.report]
+fail_under = 85
+show_missing = true
+skip_covered = true
