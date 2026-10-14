@@ -133,7 +133,6 @@ before calling ready work available. Priorities were set in triage on 2026-10-11
   - Starting point: the service operation registry in `service.py`;
     `switch_workspace` in `adapter.py`; CLI parsing in `__main__.py`.
   - Dependencies: none.
-  - Related: `guard-hazardous-raw-calls`
   - Contract: `command run NAME [--parameter TEXT] [--window-id ID]` and `command list`.
     The allowlist is a curated list committed in Remaldi, taken from the guide's
     `registered.txt` procedure plus the local-action table, and labelled with the
@@ -154,20 +153,3 @@ before calling ready work available. Priorities were set in triage on 2026-10-11
     documents the commands and their dispatch-only result. One authorized live
     toggle (for example `COMMAND_MAIN_TOGGLE_TAB_BAR` dispatched twice) is
     observed or reported as a limitation.
-
-- [DOCS] `guard-hazardous-raw-calls` — **Document that raw access can reach browser lifecycle and secret-reading APIs, without guarding it.** `raw` and `evaluate`
-  can call `vivaldi.runtimePrivate.restart`, plaintext password APIs and profile
-  resets. Restarting would break the never-restart contract.
-  - Source: Vivaldi control-surface audit, 2026-10-08, Vivaldi 8.2.4133.84;
-    [docs/VIVALDI_CONTROL_SURFACE.md](docs/VIVALDI_CONTROL_SURFACE.md) ("What not to wrap").
-  - Starting point: the `raw` operation in `service.py`; README's raw access section.
-  - Dependencies: none.
-  - Related: `dispatch-named-commands` (the command path gets a real denylist)
-  - Decision: document only (user, 2026-10-11 triage). A guard over evaluated
-    JavaScript cannot be complete, and the debugging port is reachable without
-    Remaldi, so any guard would only prevent accidents while suggesting more.
-  - Acceptance: the README's raw access section names the lifecycle, secret and
-    profile-reset API families from the control-surface guide, states that Remaldi
-    passes them through unchecked and that calling a restart or exit API breaks the
-    never-restart contract, and points to `command run` for checked dispatch once
-    it exists. No code change.

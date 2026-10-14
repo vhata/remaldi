@@ -84,6 +84,21 @@ service operation registry and Vivaldi adapter, independently of transport.
 Raw operations invalidate cached state conservatively. Requests with an uncertain
 outcome are never replayed, including toggles.
 
+Remaldi passes every `raw` method and `evaluate` expression to the browser
+unchecked. That includes the UI target's browser lifecycle APIs
+(`vivaldi.runtimePrivate.exit` and `restart`, `chrome.runtime.restart`,
+`vivaldi.autoUpdate.installUpdateAndRestart`), secret-reading APIs
+(`vivaldi.savedpasswords.*`, `chrome.passwordsPrivate.requestPlaintextPassword`
+and `exportPasswords`, `vivaldi.utilities.osDecrypt`) and profile-wide resets
+and deletions (`vivaldi.prefs.resetAllToDefault`,
+`vivaldi.runtimePrivate.deleteProfile`, `chrome.browsingData.*`); the
+[control surface guide](docs/VIVALDI_CONTROL_SURFACE.md#what-not-to-wrap) lists
+the rest. Calling a restart or exit API breaks the
+[never-restart contract](SPEC.md#boundaries). There is no guard: a check over
+evaluated JavaScript cannot be complete, and the debugging port is reachable
+without Remaldi, so a guard would only prevent accidents while implying more
+protection than it gives.
+
 ## Service and socket protocol
 
 The default runtime directory is `~/Library/Caches/remaldi`, owned by the current
