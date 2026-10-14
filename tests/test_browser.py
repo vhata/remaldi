@@ -201,6 +201,7 @@ class BrowserTests(unittest.IsolatedAsyncioTestCase):
         rejection = urllib.error.HTTPError(
             "http://127.0.0.1:9222/json/list", 403, "Forbidden", Message(), None
         )
+        self.addCleanup(rejection.close)
         with patch.object(self.browser, "_discover", side_effect=rejection):
             await self.browser.refresh()
         self.assertEqual(self.browser.state, "endpoint_rejected")
