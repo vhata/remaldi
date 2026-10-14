@@ -37,7 +37,8 @@ git diff --check "$(git hash-object -t tree /dev/null)" -- . ':!docket'
 files . -- check-merge-conflict
 files '*.toml' -- check-toml
 files '*.yml' '*.yaml' -- check-yaml
-files . -- check-executables-have-shebangs
+git ls-files --format='%(objectmode) %(path)' -- . ':!docket' |
+  sed -n 's/^100755 //p' | tr '\n' '\0' | xargs -0 uv run --locked check-executables-have-shebangs
 files . -- check-shebang-scripts-are-executable
 
 run python scripts/audit-secrets.py
