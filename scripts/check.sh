@@ -6,48 +6,44 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 run() { uv run --locked "$@"; }
-# files PATHSPEC... -- TOOL ARGS...: run a tool over the tracked files matching
-# the pathspecs (docket/ is vendored and checked upstream). An empty match is
-# an error, since most tools would silently read standard input instead.
+# tracked [--executable] PATHSPEC...: set "matched" to the tracked files that
+# match, leaving out docket/, which is vendored and checked upstream. The
+# filtering is done here because git 2.55 returns nothing for a glob combined
+# with an exclude pathspec. An empty match is an error, since most tools would
+# silently read standard input instead.
+tracked() {
+  local executable=0 line path
+  if [ "$1" = "--executable" ]; then
+    executable=1
+    shift
+  fi
+  matched=()
+  while IFS= read -r line; do
+    path="${line#* }"
+    case "$path" in docket/*) continue ;; esac
+    if [ "$executable" -eq 1 ] && [ "${line%% *}" != 100755 ]; then
+      continue
+    fi
+    matched+=("$path")
+  done < <(git ls-files --format='%(objectmode) %(path)' -- "$@")
+  if [ "${#matched[@]}" -eq 0 ]; then
+    echo "check: no tracked files match $*" >&2
+    return 1
+  fi
+}
+# files PATHSPEC... -- TOOL ARGS...: run a tool over the tracked files.
 files() {
-  local specs=() matched=() path
+  local specs=()
   while [ "$1" != "--" ]; do
     specs+=("$1")
     shift
   done
   shift
-  while IFS= read -r -d '' path; do
-    matched+=("$path")
-  done < <(git ls-files -z -- "${specs[@]}" ':!docket')
-  if [ "${#matched[@]}" -eq 0 ]; then
-    echo "check: no tracked files match ${specs[*]}" >&2
-    return 1
-  fi
-  run "$@" "${matched[@]}"
-}
-# executables TOOL ARGS...: run a tool over tracked files with mode 100755.
-executables() {
-  local matched=() path
-  while IFS= read -r path; do
-    matched+=("$path")
-  done < <(git ls-files --format='%(objectmode) %(path)' -- . ':!docket' | sed -n 's/^100755 //p')
-  if [ "${#matched[@]}" -eq 0 ]; then
-    echo "check: no tracked executables" >&2
-    return 1
-  fi
+  tracked "${specs[@]}"
   run "$@" "${matched[@]}"
 }
 
 # Python formatting, lint and types.
-echo "DEBUG ls-files count: $(git ls-files | wc -l)"
-git ls-files -- scripts | head -5
-echo "DEBUG glob:"
-git ls-files -- 'scripts/*.sh' | head -3
-echo "DEBUG excl:"
-git ls-files -- 'scripts/*.sh' ':!docket' | head -3
-echo "DEBUG env:"
-env | grep -i -E '^GIT_|LITERAL|ICASE' || true
-git config --list --show-origin | grep -v -i -E 'token|extraheader|url' | head -20
 run ruff format --check .
 run ruff check .
 run mypy
@@ -62,11 +58,13 @@ run typos
 
 # Repository hygiene: whitespace errors, conflict markers, TOML and YAML
 # syntax, and shebangs agreeing with the executable bit.
-git diff --check "$(git hash-object -t tree /dev/null)" -- . ':!docket'
+tracked .
+git diff --check "$(git hash-object -t tree /dev/null)" -- "${matched[@]}"
 files . -- check-merge-conflict
 files '*.toml' -- check-toml
 files '*.yml' '*.yaml' -- check-yaml
-executables check-executables-have-shebangs
+tracked --executable .
+run check-executables-have-shebangs "${matched[@]}"
 files . -- check-shebang-scripts-are-executable
 
 run python scripts/audit-secrets.py
