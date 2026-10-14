@@ -249,6 +249,19 @@ class WorkspaceSnapshotTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(state["windows"][0]["id"], 7)
         self.assertNotIn("workspace_preference", state)
 
+    def test_command_dispatch_needs_menubar_dispatch_and_prefs(self):
+        # Every command run reads the chain list with vivaldi.prefs.get.
+        for definition in [
+            "const switchSupported = typeof vivaldi !== 'undefined'"
+            " && typeof vivaldi.menubar?.onActivated?.dispatch === 'function';",
+            "const prefsSupported = typeof vivaldi !== 'undefined'"
+            " && typeof vivaldi.prefs?.get === 'function';",
+            "workspace_switch:switchSupported,",
+            "command_dispatch:switchSupported && prefsSupported}",
+        ]:
+            with self.subTest(definition=definition):
+                self.assertEqual(SNAPSHOT.count(definition), 1)
+
     def test_snapshot_reads_workspace_preference(self):
         self.assertIn("vivaldi.prefs.get('vivaldi.workspaces.list'", SNAPSHOT)
         prefs_read = SNAPSHOT[SNAPSHOT.index("vivaldi.prefs.get(") :]

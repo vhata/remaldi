@@ -93,3 +93,17 @@ class LifecycleTests(unittest.TestCase):
                 self.assertTrue(accepted["ok"])
                 self.assertEqual(accepted["id"], "good")
                 self.assertEqual(accepted["result"]["service"], "running")
+
+    def test_command_cli_lists_and_denies_without_a_browser(self):
+        listed = self.command("command", "list")
+        self.assertEqual(listed.returncode, 0, listed.stderr)
+        result = json.loads(listed.stdout)
+        self.assertEqual(result["vivaldi_version"], "8.2.4133.84")
+        allowed = {entry["name"]: entry["allowed"] for entry in result["commands"]}
+        self.assertTrue(allowed["COMMAND_MAIN_TOGGLE_TAB_BAR"])
+        self.assertFalse(allowed["COMMAND_EXIT"])
+        denied = self.command("command", "run", "COMMAND_EXIT", "--window-id", "1")
+        self.assertNotEqual(denied.returncode, 0)
+        self.assertEqual(json.loads(denied.stderr)["error"]["code"], "command_denied")
+        misuse = self.command("command", "run", "COMMAND_PIN_TAB", "--parameter", "1")
+        self.assertEqual(json.loads(misuse.stderr)["error"]["code"], "invalid_parameters")

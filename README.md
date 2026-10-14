@@ -19,6 +19,8 @@ python -m pip install -e .
 remaldi status
 remaldi state
 remaldi workspace switch WORKSPACE_ID
+remaldi command list
+remaldi command run COMMAND_MAIN_TOGGLE_TAB_BAR
 remaldi raw Browser.getVersion
 remaldi evaluate 'chrome.windows.getCurrent()' --await-promise --return-by-value
 remaldi stop
@@ -52,6 +54,40 @@ Vivaldi focuses that window instead of switching the selected one; Remaldi repor
 this as a normal dispatch (read from Vivaldi 8.2's code, not observed live). A
 successful result, `{"dispatched": true}`, means the action was dispatched, not that
 a visible workspace change was verified.
+
+`command run NAME` dispatches one of Vivaldi's own commands or local actions by
+name, as a keyboard shortcut or the native menu would: for example
+`COMMAND_TAB_STACK_CREATE`, `COMMAND_PAGE_TOGGLE_MUTE` or
+`COMMAND_READERVIEW_TOGGLE`. Only names in Remaldi's committed list are
+accepted. That list was taken from Vivaldi 8.2.4133.84's command registry and
+local-action handler (`remaldi/commands.py`); other versions may differ.
+`command list` prints it as `{"vivaldi_version", "commands"}`, each command
+with its `name`, `kind` (`command` or `local_action`), the `parameter` a local
+action expects and an `allowed` flag. It shows no key or gesture bindings
+and needs no browser connection.
+
+Some names are always refused with `command_denied`: `COMMAND_EXIT`,
+`COMMAND_QUIT_MAC_MAYBE_WARN`, `COMMAND_CLOSE_WINDOW`,
+`COMMAND_MAIL_DELETE_PERMANENTLY`, `COMMAND_EXPORT_PASSWORDS`,
+`COMMAND_MANAGE_PEOPLE`, `COMMAND_NEW_GUEST_WINDOW` (it switches to a guest
+session), `JS_LOCAL_CLEAR_CLOSED_TABS`, `JS_LOCAL_CLEAR_CLOSED_WEBPANELS`, and
+`JS_LOCAL_ACTIVATE_WORKSPACE`, which
+creates a tab for an unknown ID (use `workspace switch`). Any other name fails
+with `unknown_command`. User-defined command chains are never dispatched,
+because their steps could run any command, including the denied ones.
+
+Local actions such as `JS_LOCAL_ACTIVATE_TAB`, `COMMAND_OPEN_LINK` and
+`PERIODIC_RELOAD` need `--parameter TEXT`; IDs must be nonnegative decimal
+numbers and the `PERIODIC_RELOAD` interval a positive one. Registry commands
+take no parameter, and passing one fails with `invalid_parameters`. `--window-id` and the focused-window
+default work as for `workspace switch`. In the same browser evaluation as the
+dispatch, Remaldi refuses a name that a user-defined chain also uses
+(`chain_not_allowed`, or `command_chains_unavailable` if the chain list
+cannot be read) and a missing or minimized window (`invalid_parameters`,
+`minimized_window`). A successful result, `{"dispatched": true}`, means only
+that the dispatch was sent. Vivaldi reports nothing back, so a command that
+does nothing in the current context still succeeds. No command has yet been
+dispatched through Remaldi against a live browser.
 
 Vivaldi must already be running with `--remote-debugging-port=9222`. On macOS,
 launch it with `open -a Vivaldi --args --remote-debugging-port=9222` after quitting
@@ -99,6 +135,8 @@ evaluated JavaScript cannot be complete, and the debugging port is reachable
 without Remaldi, so a guard would only prevent accidents while implying more
 protection than it gives.
 
+For Vivaldi commands, `command run` is the checked dispatch path.
+
 ## Service and socket protocol
 
 The default runtime directory is `~/Library/Caches/remaldi`, owned by the current
@@ -120,7 +158,8 @@ Clients may send multiple newline-delimited JSON requests over one socket:
 
 Responses contain the same `id`, `version: 1`, `ok`, and either `result` or an
 `error` object with `code` and `message`. Operations are `status`, `stop`, `raw`,
-`state`, and `workspace.switch`. Request and response lines are limited to 8 MiB
+`state`, `workspace.switch`, `command.list` and `command.run` (params `name`,
+optional `parameter` and `window_id`). Request and response lines are limited to 8 MiB
 plus 64 KiB of envelope allowance. Oversized results fail explicitly. Incompatible
 protocol versions fail explicitly. Service status includes the PID, discovered
 target IDs, browser state, and diagnostics. An unavailable endpoint does not prove

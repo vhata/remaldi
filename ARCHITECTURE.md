@@ -31,6 +31,10 @@ The archived `reference/vivaldiws` is historical context, not a runtime dependen
 - Friendly mutations serialize in the adapter. Workspace switching accepts
   internal IDs and an explicit window or the uniquely focused window. Its result
   confirms dispatch, not a visually verified switch.
+- Named command dispatch accepts only names in the committed allowlist in
+  `remaldi/commands.py`, which records the Vivaldi version it was taken from,
+  and never dispatches a user-defined chain. It selects windows as workspace
+  switching does and its result likewise confirms dispatch only.
 
 ## Failure and acceptance invariants
 

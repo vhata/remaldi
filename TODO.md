@@ -38,6 +38,19 @@ before calling ready work available. Priorities were set in triage on 2026-10-11
     windows; how to remove them; and how several windows map onto `window.html`
     targets (one window was observed).
 
+### Unprioritized
+
+- [ACCEPTANCE] `verify-live-command-dispatch` — **Validate a named command dispatch in a running Vivaldi browser.** `command run` success confirms dispatch only, and its tests read the evaluated JavaScript as text without running it.
+  - Source: `dispatch-named-commands` PR, 2026-10-13; the live toggle in
+    that entry's acceptance was reported as a limitation.
+  - Starting point: `command run` in README; `RUN_COMMAND` in `adapter.py`;
+    the live scenario in docs/QUALITY.md.
+  - Blocked by: an already-running debug-enabled Vivaldi and explicit
+    authorization for the selected visible change.
+  - Acceptance: dispatch `COMMAND_MAIN_TOGGLE_TAB_BAR` twice, observe the tab bar
+    hide and return, and report version, capabilities and limits without
+    private data.
+
 ## Needs proof of concept
 
 ### P2 Normal
@@ -85,7 +98,6 @@ before calling ready work available. Priorities were set in triage on 2026-10-11
   - Starting point: `vivaldi.tabsPrivate.update`/`unstack`/`setGroupProperties`,
     tab `vivExtData`, and the `COMMAND_TAB_STACK_*` registry entries in `bundle.js`.
   - Dependencies: none.
-  - Related: `dispatch-named-commands`
   - Experiment: from bundle call sites, establish how stacks and tiles are encoded in
     `vivExtData` and which calls create, rename, dissolve and tile them for given
     tab IDs. Then confirm with one authorized, reversible live change on disposable tabs.
@@ -122,34 +134,3 @@ before calling ready work available. Priorities were set in triage on 2026-10-11
     (events carry URLs and titles).
 
 ## Ready for separate work
-
-### P2 Normal
-
-- [SERVICE] `dispatch-named-commands` — **Run Vivaldi commands and parameterised local actions by name.** Most keyboard-reachable actions
-  (stack and tile tabs, toggle UI parts, mute, reader view, panels) need no new
-  browser code, only a checked dispatch.
-  - Source: Vivaldi control-surface audit, 2026-10-08, Vivaldi 8.2.4133.84;
-    [docs/VIVALDI_CONTROL_SURFACE.md](docs/VIVALDI_CONTROL_SURFACE.md) ("How command dispatch works", "What can be driven", "What not to wrap").
-  - Starting point: the service operation registry in `service.py`;
-    `switch_workspace` in `adapter.py`; CLI parsing in `__main__.py`.
-  - Dependencies: none.
-  - Contract: `command run NAME [--parameter TEXT] [--window-id ID]` and `command list`.
-    The allowlist is a curated list committed in Remaldi, taken from the guide's
-    `registered.txt` procedure plus the local-action table, and labelled with the
-    Vivaldi version it came from. `vivaldi.actions` is not a source because it
-    only holds bound commands and may contain user chain names. Chains are not
-    allowed, because dispatching a chain's name runs steps the denylist cannot
-    check. Always deny `COMMAND_EXIT`, `COMMAND_QUIT_MAC_MAYBE_WARN`,
-    `COMMAND_CLOSE_WINDOW`, `COMMAND_MAIL_DELETE_PERMANENTLY`,
-    `COMMAND_EXPORT_PASSWORDS`, `COMMAND_MANAGE_PEOPLE`,
-    `JS_LOCAL_CLEAR_CLOSED_TABS` and `JS_LOCAL_CLEAR_CLOSED_WEBPANELS`.
-    `--parameter` applies only to local actions. Window selection matches
-    workspace switching. Check for a minimized window in the same expression as
-    the dispatch. The result confirms dispatch only. Mutations serialize,
-    invalidate state and are never replayed. `command list` returns names with an
-    allowed flag and no bindings.
-  - Acceptance: tests cover allowed, denied, unknown, chain and parameterised
-    names, window selection, minimized rejection, no-replay and invalidation. The README
-    documents the commands and their dispatch-only result. One authorized live
-    toggle (for example `COMMAND_MAIN_TOGGLE_TAB_BAR` dispatched twice) is
-    observed or reported as a limitation.

@@ -44,6 +44,13 @@ def main() -> int:
     switch = workspace_commands.add_parser("switch")
     switch.add_argument("workspace_id")
     switch.add_argument("--window-id", type=int)
+    command = commands.add_parser("command")
+    command_actions = command.add_subparsers(dest="action", required=True)
+    command_actions.add_parser("list")
+    run = command_actions.add_parser("run")
+    run.add_argument("name")
+    run.add_argument("--parameter")
+    run.add_argument("--window-id", type=int)
     args = parser.parse_args()
     try:
         if args.command == "serve":
@@ -86,6 +93,11 @@ def main() -> int:
         elif operation == "workspace":
             operation = "workspace.switch"
             params = {"workspace_id": args.workspace_id, "window_id": args.window_id}
+        elif operation == "command" and args.action == "list":
+            operation = "command.list"
+        elif operation == "command":
+            operation = "command.run"
+            params = {"name": args.name, "parameter": args.parameter, "window_id": args.window_id}
         result = call(operation, params)
         print(json.dumps(result))
         return 0
