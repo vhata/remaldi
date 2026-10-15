@@ -36,13 +36,13 @@ class Service:
         }
 
     async def state(self, params: JsonObject) -> JsonObject:
-        return await self.adapter.snapshot(refresh=self.refresh(params))
+        return await self.adapter.snapshot(refresh=self.refresh_flag(params))
 
     async def window_list(self, params: JsonObject) -> WindowList:
-        return await self.adapter.list_windows(refresh=self.refresh(params))
+        return await self.adapter.list_windows(refresh=self.refresh_flag(params))
 
     @classmethod
-    def refresh(cls, params: JsonObject) -> bool:
+    def refresh_flag(cls, params: JsonObject) -> bool:
         """Validate parameters that may hold only a boolean refresh flag and return it."""
         cls.validate(params, {"refresh"})
         refresh: object = params.get("refresh", False)

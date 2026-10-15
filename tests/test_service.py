@@ -80,26 +80,44 @@ class ServiceDeadlineTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(executed, [])
 
 
-class WindowListServiceTests(unittest.IsolatedAsyncioTestCase):
-    async def test_window_list_validates_and_forwards_refresh(self) -> None:
+class RefreshParameterTests(unittest.IsolatedAsyncioTestCase):
+    async def test_state_and_window_list_validate_and_forward_refresh(self) -> None:
         service = Service("http://127.0.0.1:1")
         listed: WindowList = {"default_window_id": None, "windows": []}
-        list_windows = self.enterContext(
-            patch.object(service.adapter, "list_windows", AsyncMock(return_value=listed))
-        )
-        for params, refresh in [
-            ({}, False),
-            ({"refresh": False}, False),
-            ({"refresh": True}, True),
-        ]:
-            with self.subTest(params=params):
-                list_windows.reset_mock()
-                result = await service.dispatch(
-                    {"version": 1, "operation": "window.list", "params": params}
-                )
-                self.assertEqual(result, listed)
-                list_windows.assert_awaited_once_with(refresh=refresh)
-        for bad in [{"refresh": 1}, {"refresh": "yes"}, {"window_id": 7}]:
-            with self.subTest(params=bad), self.assertRaises(ControlError) as caught:
-                await service.dispatch({"version": 1, "operation": "window.list", "params": bad})
-            self.assertEqual(caught.exception.code, "invalid_parameters")
+        snapshot: JsonObject = {"windows": [], "capabilities": {}}
+        handlers = {
+            "state": (
+                self.enterContext(
+                    patch.object(service.adapter, "snapshot", AsyncMock(return_value=snapshot))
+                ),
+                snapshot,
+            ),
+            "window.list": (
+                self.enterContext(
+                    patch.object(service.adapter, "list_windows", AsyncMock(return_value=listed))
+                ),
+                listed,
+            ),
+        }
+        for operation, (handler, expected) in handlers.items():
+            for params, refresh in [
+                ({}, False),
+                ({"refresh": False}, False),
+                ({"refresh": True}, True),
+            ]:
+                with self.subTest(operation=operation, params=params):
+                    handler.reset_mock()
+                    result = await service.dispatch(
+                        {"version": 1, "operation": operation, "params": params}
+                    )
+                    self.assertEqual(result, expected)
+                    handler.assert_awaited_once_with(refresh=refresh)
+            handler.reset_mock()
+            for bad in [{"refresh": 1}, {"refresh": "yes"}, {"window_id": 7}]:
+                with (
+                    self.subTest(operation=operation, params=bad),
+                    self.assertRaises(ControlError) as caught,
+                ):
+                    await service.dispatch({"version": 1, "operation": operation, "params": bad})
+                self.assertEqual(caught.exception.code, "invalid_parameters")
+                handler.assert_not_awaited()
