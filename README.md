@@ -18,6 +18,7 @@ also works):
 uv tool install .
 remaldi status
 remaldi state
+remaldi window list
 remaldi workspace switch WORKSPACE_ID
 remaldi command list
 remaldi command run COMMAND_MAIN_TOGGLE_TAB_BAR
@@ -44,12 +45,21 @@ remaldi evaluate "new Promise(r => vivaldi.prefs.get('vivaldi.workspaces.list', 
 ```
 
 `--window-id` selects an explicit window; otherwise switching uses the uniquely
-focused window. Window IDs are the `id` fields of the `windows` that `state`
-returns:
+focused window. `window list` prints the IDs:
 
 ```bash
-remaldi state | jq '.windows[] | {id, focused, state}'
+remaldi window list
 ```
+
+It returns `{"default_window_id", "windows"}`, each window with its `id`,
+`focused`, `state`, `type` and `tab_count`, and no tab titles, URLs or
+workspace names. `default_window_id` is the window a switch or command uses
+when `--window-id` is omitted, or null when there is no uniquely focused window
+and such a call would fail with `ambiguous_window`. `tab_count` counts the
+window's `tabs` in `state`, which include web-panel tabs. A minimized window is
+listed, but switching or running a command there fails with `minimized_window`.
+Like `state`, it reads the cached snapshot unless given `--refresh`; a switch
+or command reads the windows again when it runs.
 
 With a Private window open, Private windows are normally left out and cannot be
 selected (see [State and extension points](#state-and-extension-points)).
@@ -177,7 +187,8 @@ Clients may send multiple newline-delimited JSON requests over one socket:
 
 Responses contain the same `id`, `version: 1`, `ok`, and either `result` or an
 `error` object with `code` and `message`. Operations are `status`, `stop`, `raw`,
-`state`, `workspace.switch`, `command.list` and `command.run` (params `name`,
+`state`, `window.list` (optional `refresh`, as for `state`),
+`workspace.switch`, `command.list` and `command.run` (params `name`,
 optional `parameter` and `window_id`). Request and response lines are limited to 8 MiB
 plus 64 KiB of envelope allowance. Oversized results fail explicitly. Incompatible
 protocol versions fail explicitly. Service status includes the PID, discovered

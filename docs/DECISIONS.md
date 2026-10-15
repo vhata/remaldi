@@ -1,5 +1,18 @@
 # Decisions
 
+## 2026-10-14: List windows through a service operation
+
+`window list` is a `window.list` operation in the service registry rather
+than a projection the CLI makes of `state` output. The window the default
+selection would use is decided in the adapter (`_default_window`, shared with
+`_select_window`), and a client-side projection would have had to copy that
+rule into the client, where it would drift when the rule changes (a default
+to the last focused window has been proposed). As an operation, any socket
+client gets the same answer, and the reply carries a few fields per window
+instead of every tab's title and URL. The cost is one more protocol operation
+to keep documented; it reads the same cached snapshot as `state`, so it adds
+no browser work.
+
 ## 2026-10-13: Lock the toolchain with uv and widen the gates
 
 uv replaces pip, setuptools and the hand-picked interpreter: `uv.lock` pins
