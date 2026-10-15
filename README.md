@@ -58,8 +58,10 @@ when `--window-id` is omitted, or null when there is no uniquely focused window
 and such a call would fail with `ambiguous_window`. `tab_count` counts the
 window's `tabs` in `state`, which include web-panel tabs. A minimized window is
 listed, but switching or running a command there fails with `minimized_window`.
-Like `state`, it reads the cached snapshot unless given `--refresh`; a switch
-or command reads the windows again when it runs.
+Like `state`, it reads the cached snapshot unless given `--refresh`. A switch
+or command also chooses its default window from the cached snapshot, then
+checks in the browser only that the chosen window still exists and is not
+minimized before dispatching.
 
 With a Private window open, Private windows are normally left out and cannot be
 selected (see [State and extension points](#state-and-extension-points)).
