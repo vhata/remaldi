@@ -282,13 +282,23 @@ class RunCommandTests(unittest.IsolatedAsyncioTestCase):
         await adapter.run_command("COMMAND_PIN_TAB", window_id=7)
         self.assertIn("const windowId = 7;", self.evaluated(controller)[1])
 
-        for windows, window_id, code in [
+        adapter, controller = self.adapter(
+            windows=cast("list[JsonObject]", ["not a window", {"id": 9, "focused": True}])
+        )
+        await adapter.run_command("COMMAND_PIN_TAB")
+        self.assertIn("const windowId = 9;", self.evaluated(controller)[1])
+
+        cases: list[tuple[list[JsonObject], object, str]] = [
             ([{"id": 7, "focused": True}, {"id": 9, "focused": True}], None, "ambiguous_window"),
             ([{"id": 7, "focused": False}], None, "ambiguous_window"),
+            ([{"id": 7, "focused": 1}], None, "ambiguous_window"),
+            ([{"focused": True}], None, "ambiguous_window"),
+            ([{"id": "7", "focused": True}], None, "ambiguous_window"),
             ([{"id": 7, "focused": True}], 8, "invalid_parameters"),
             ([{"id": 7, "focused": True}], "7", "invalid_parameters"),
             ([{"id": 1, "focused": True}], True, "invalid_parameters"),
-        ]:
+        ]
+        for windows, window_id, code in cases:
             with self.subTest(windows=windows, window_id=window_id):
                 adapter, controller = self.adapter(windows=windows)
                 with self.assertRaises(ControlError) as caught:

@@ -389,7 +389,7 @@ class VivaldiAdapter:
         state = await self.snapshot(refresh=refresh)
         entries = _objects(state.get("windows"))
         return {
-            "default_window_id": _window_id(_default_window(entries)),
+            "default_window_id": _default_window(entries),
             "windows": [_window_summary(window) for window in entries],
         }
 
@@ -471,19 +471,20 @@ class VivaldiAdapter:
         raise ControlError("unsupported_result", unexpected)
 
 
-def _default_window(windows: list[dict[str, object]]) -> object:
+def _default_window(windows: list[dict[str, object]]) -> int | None:
     """Return the ID of the window used when none is given: the uniquely focused one.
 
-    None means there is no default. ``window list`` reports this choice, so a
-    change to the rule belongs here.
+    None means there is no default, including when that window has no usable
+    ID. ``window list`` reports this choice, so a change to the rule belongs
+    here.
     """
     focused = [window for window in windows if window.get("focused") is True]
-    return focused[0].get("id") if len(focused) == 1 else None
+    return _window_id(focused[0].get("id")) if len(focused) == 1 else None
 
 
 def _select_window(state: JsonObject, window_id: object) -> int:
     """Return the explicit window if it exists, or the default window."""
-    windows = state.get("windows", [])
+    windows = _objects(state.get("windows"))
     if window_id is None:
         window_id = _default_window(windows)
         if window_id is None:

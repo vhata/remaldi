@@ -93,6 +93,30 @@ class AdapterTests(unittest.IsolatedAsyncioTestCase):
         await adapter.switch_workspace(2, window_id=9)
         self.assertIn("const windowId = 9;", self.evaluated(controller)[1])
 
+    async def test_switch_default_window_is_the_one_exactly_focused_window(self) -> None:
+        adapter, controller, state = self.adapter()
+        state["windows"] = ["not a window", {"id": 9, "focused": True}]
+        controller.request.side_effect = [
+            {"result": {"value": state}},
+            {"result": {"value": {"dispatched": True}}},
+        ]
+        await adapter.switch_workspace(2)
+        self.assertIn("const windowId = 9;", self.evaluated(controller)[1])
+        for windows in [
+            [{"id": 7, "focused": True}, {"id": 9, "focused": True}],
+            [{"id": 7, "focused": False}],
+            [{"id": 7, "focused": 1}],
+            [{"focused": True}],
+            [{"id": "7", "focused": True}],
+        ]:
+            with self.subTest(windows=windows):
+                adapter, controller, state = self.adapter()
+                state["windows"] = windows
+                with self.assertRaises(ControlError) as caught:
+                    await adapter.switch_workspace(2)
+                self.assertEqual(caught.exception.code, "ambiguous_window")
+                self.assertEqual(controller.request.await_count, 1)
+
     async def test_switch_checks_preference_and_window_before_dispatch(self) -> None:
         adapter, controller = self.switch_adapter({"dispatched": True})
         await adapter.switch_workspace(2)
@@ -495,14 +519,18 @@ class WindowListTests(unittest.IsolatedAsyncioTestCase):
             self.assertNotIn(private, encoded)
 
     async def test_default_window_follows_the_selection_rule(self) -> None:
-        for windows in [
+        cases: list[list[object]] = [
             [{"id": 7, "focused": True}, {"id": 9, "focused": False}],
             [{"id": 7, "focused": False}, {"id": 9, "focused": True}],
             [{"id": 7, "focused": False}, {"id": 9, "focused": False}],
             [{"id": 7, "focused": True}, {"id": 9, "focused": True}],
             [{"id": 7, "focused": 1}],
+            [{"focused": True}],
+            [{"id": "7", "focused": True}],
+            ["not a window", {"id": 7, "focused": True}],
             [],
-        ]:
+        ]
+        for windows in cases:
             with self.subTest(windows=windows):
                 state: JsonObject = {"windows": windows}
                 try:
@@ -510,7 +538,7 @@ class WindowListTests(unittest.IsolatedAsyncioTestCase):
                 except ControlError as error:
                     self.assertEqual(error.code, "ambiguous_window")
                     expected = None
-                result = await self.list_windows(list(windows))
+                result = await self.list_windows(windows)
                 self.assertIsInstance(result, dict)
                 assert isinstance(result, dict)
                 self.assertEqual(result["default_window_id"], expected)
@@ -533,10 +561,22 @@ class WindowListTests(unittest.IsolatedAsyncioTestCase):
         )
 
     async def test_focused_window_without_a_usable_id_is_not_the_default(self) -> None:
-        result = await self.list_windows([{"id": "7", "focused": True}])
-        self.assertIsInstance(result, dict)
-        assert isinstance(result, dict)
-        self.assertIsNone(result["default_window_id"])
+        cases: list[list[object]] = [[{"id": "7", "focused": True}], [{"focused": True}]]
+        for windows in cases:
+            with self.subTest(windows=windows):
+                result = await self.list_windows(windows)
+                self.assertIsInstance(result, dict)
+                assert isinstance(result, dict)
+                self.assertIsNone(result["default_window_id"])
+
+    async def test_missing_window_list_is_empty(self) -> None:
+        for windows in [None, "windows", {"id": 7}]:
+            with self.subTest(windows=windows):
+                state: JsonObject = {"windows": windows, "capabilities": {}}
+                self.assertEqual(
+                    await VivaldiAdapter(FakeController(state)).list_windows(),
+                    {"default_window_id": None, "windows": []},
+                )
 
     async def test_reads_the_cached_snapshot_unless_refreshed(self) -> None:
         state: JsonObject = {
