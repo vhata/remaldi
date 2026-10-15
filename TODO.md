@@ -2,7 +2,8 @@
 
 Use [the TODO guide](docket/TODO_GUIDE.md) before selecting or moving an entry.
 These are known follow-ups, not assignments. Check open PR claims and dependencies
-before calling ready work available. Priorities were set in triage on 2026-10-11.
+before calling ready work available. Priorities were set in triage on 2026-10-11
+and 2026-10-14.
 
 ## Needs triage
 
@@ -25,40 +26,30 @@ before calling ready work available. Priorities were set in triage on 2026-10-11
   - Acceptance: observe disconnect/reconnect, retain the service PID, and verify
     fresh state after the new browser target appears.
 
-### P3 Low
-
-- [BROWSER] `browser-ui-style-injection` — **Apply user styles to Vivaldi's own interface through the debugger.** Evaluating in the `window.html`
-  target can add CSS to the browser UI without modifying application files.
-  - Source: Vivaldi control-surface audit, 2026-10-08, Vivaldi 8.2.4133.84;
-    [docs/VIVALDI_CONTROL_SURFACE.md](docs/VIVALDI_CONTROL_SURFACE.md) ("Browser UI changes").
-  - Starting point: target discovery in `browser.py`; the `window.html` target.
-  - Dependencies: none.
-  - Triage outcome: whether this is wanted (undecided as of 2026-10-11 triage);
-    where styles are stored; how to reapply after UI reloads, reconnection and new
-    windows; how to remove them; and how several windows map onto `window.html`
-    targets (one window was observed).
+- [ACCEPTANCE] `verify-live-command-dispatch` — **Validate a named command dispatch in a running Vivaldi browser.** `command run` success confirms dispatch only, and its tests read the evaluated JavaScript as text without running it.
+  - Source: `dispatch-named-commands` PR, 2026-10-13; the live toggle in
+    that entry's acceptance was reported as a limitation.
+  - Starting point: `command run` in README; `RUN_COMMAND` in `adapter.py`;
+    the live scenario in docs/QUALITY.md.
+  - Blocked by: an already-running debug-enabled Vivaldi and explicit
+    authorization for the selected visible change.
+  - Acceptance: dispatch `COMMAND_MAIN_TOGGLE_TAB_BAR` twice, observe the tab bar
+    hide and return, and report version, capabilities and limits without
+    private data.
 
 ### Unprioritized
 
-- [BROWSER] `per-profile-ui-contexts` — **Report and control windows in every UI context, Private windows included.** Remaldi uses only the regular profile's `main.html`, so Private windows (and any other profile) are invisible to `state`, `workspace switch` and `command run`.
-  - Source: `regular-profile-ui-target` fix, 2026-10-13.
-  - Starting point: `_select_ui` in `browser.py`; the decision entry of
-    2026-10-13 in docs/DECISIONS.md.
-  - Open questions: whether Private windows should be controllable at all;
-    whether `vivaldi.menubar.onActivated.dispatch` from one context reaches a
-    window owned by another; how snapshots, event hooks and invalidation work
-    with one connection per context; how several regular profiles are told
-    apart.
+- [TOOLING] `automated-dependency-updates` — **Open update PRs for `uv.lock` and the SHA-pinned workflow actions automatically.** Every pin is now exact, so nothing moves without someone running `uv lock --upgrade` and editing workflow SHAs by hand.
+  - Source: `uv-tooling` PR, 2026-10-13.
+  - Starting point: Dependabot's `uv` and `github-actions` ecosystems, or Renovate.
+  - Triage outcome: bot PR bodies carry no `## Why` or `Type:` line, so
+    `docket/scripts/check-pr-markers.sh` would fail them in `Checks`; decide
+    whether bot PRs are exempted in the workflow, rewritten before merge, or
+    the tool is left out.
 
-- [CLIENT] `list-window-ids` — **Add a command that lists window IDs for `--window-id`.** `workspace switch` and `command run` both take `--window-id`, and the only way to find one is to filter `state` output with `jq` as the README shows.
-  - Source: user request during the `regular-profile-ui-target` fix, 2026-10-13.
-  - Starting point: `_select_window` in `adapter.py`; the `windows` field of
-    the snapshot; `__main__.py`.
-  - Shape to decide: a `remaldi window list` command (or similar) printing
-    each window's `id`, `focused`, `state`, `type` and tab count, with no tab
-    titles or URLs; whether it marks the window the focused-window default
-    would select.
-  - Related: `last-focused-window-default`
+## Needs proof of concept
+
+### P1 High
 
 - [STATE] `last-focused-window-default` — **Default `workspace switch` and `command run` to the most recently focused Vivaldi window.** The default now needs exactly one window with `focused: true`, and Chrome sets that only while Vivaldi has OS focus, so running `remaldi` from a terminal in front of Vivaldi fails with `ambiguous_window` in what the user expects to be the most common case.
   - Source: user request, 2026-10-13, after the `regular-profile-ui-target` fix.
@@ -72,36 +63,14 @@ before calling ready work available. Priorities were set in triage on 2026-10-11
     handled; whether `state` should mark the window the default would pick.
   - Unverified: `focused` being false for every window while another app is
     frontmost is Chrome's documented behaviour, not observed in Vivaldi.
+  - Experiment: with a terminal frontmost, read `focused` on every window and
+    the result of `chrome.windows.getLastFocused` in a running debug-enabled
+    Vivaldi, read-only and only under an authorized live session; then repeat
+    after a focus change between two Vivaldi windows.
+  - Acceptance: an observed answer to whether `getLastFocused` is usable, or
+    a design for recording focus in the UI context, ready for a Ready
+    implementation entry.
   - Related: `list-window-ids`
-
-- [ACCEPTANCE] `verify-live-command-dispatch` — **Validate a named command dispatch in a running Vivaldi browser.** `command run` success confirms dispatch only, and its tests read the evaluated JavaScript as text without running it.
-  - Source: `dispatch-named-commands` PR, 2026-10-13; the live toggle in
-    that entry's acceptance was reported as a limitation.
-  - Starting point: `command run` in README; `RUN_COMMAND` in `adapter.py`;
-    the live scenario in docs/QUALITY.md.
-  - Blocked by: an already-running debug-enabled Vivaldi and explicit
-    authorization for the selected visible change.
-  - Acceptance: dispatch `COMMAND_MAIN_TOGGLE_TAB_BAR` twice, observe the tab bar
-    hide and return, and report version, capabilities and limits without
-    private data.
-
-- [TOOLING] `automated-dependency-updates` — **Open update PRs for `uv.lock` and the SHA-pinned workflow actions automatically.** Every pin is now exact, so nothing moves without someone running `uv lock --upgrade` and editing workflow SHAs by hand.
-  - Source: `uv-tooling` PR, 2026-10-13.
-  - Starting point: Dependabot's `uv` and `github-actions` ecosystems, or Renovate.
-  - Triage outcome: bot PR bodies carry no `## Why` or `Type:` line, so
-    `docket/scripts/check-pr-markers.sh` would fail them in `Checks`; decide
-    whether bot PRs are exempted in the workflow, rewritten before merge, or
-    the tool is left out.
-
-- [TOOLING] `pyright-strict-application` — **Run basedpyright in strict mode over `remaldi/`.** Standard mode misses values of unknown type flowing out of decoded JSON.
-  - Source: `uv-tooling` PR, 2026-10-13; strict mode reported 49 errors in
-    `remaldi/` and `scripts/` at the time, nearly all `dict[Unknown, Unknown]`
-    from `json.loads` and `.get`.
-  - Starting point: a JSON value type at the DevTools and socket boundaries in
-    `transport.py`, `service.py` and `client.py`; `[tool.basedpyright]` in
-    `pyproject.toml`.
-
-## Needs proof of concept
 
 ### P2 Normal
 
@@ -184,3 +153,30 @@ before calling ready work available. Priorities were set in triage on 2026-10-11
     (events carry URLs and titles).
 
 ## Ready for separate work
+
+### P2 Normal
+
+- [CLIENT] `list-window-ids` — **Add a command that lists window IDs for `--window-id`.** `workspace switch` and `command run` both take `--window-id`, and the only way to find one is to filter `state` output with `jq` as the README shows.
+  - Source: user request during the `regular-profile-ui-target` fix, 2026-10-13.
+  - Starting point: `_select_window` in `adapter.py`; the `windows` field of
+    the snapshot; `__main__.py`.
+  - Shape: a `remaldi window list` command (or similar) printing each
+    window's `id`, `focused`, `state`, `type` and tab count, with no tab
+    titles or URLs. The implementer settles the name and whether it marks the
+    window the focused-window default would select; that marking follows
+    whatever rule `_select_window` applies at the time, so this entry does not
+    wait for `last-focused-window-default`.
+  - Related: `last-focused-window-default`
+
+### P3 Low
+
+- [TOOLING] `pyright-strict-application` — **Run basedpyright in strict mode over `remaldi/`.** Standard mode misses values of unknown type flowing out of decoded JSON.
+  - Source: `uv-tooling` PR, 2026-10-13; strict mode reported 49 errors in
+    `remaldi/` and `scripts/` at the time, nearly all `dict[Unknown, Unknown]`
+    from `json.loads` and `.get`.
+  - Strict mode over `remaldi/` alone reported 45 errors on 2fa2c89
+    (2026-10-14): 25 in `adapter.py`, 18 in `service.py`, one each in
+    `__main__.py` and `browser.py`, all `reportUnknown*`.
+  - Starting point: a JSON value type at the DevTools and socket boundaries in
+    `transport.py`, `service.py` and `client.py`; `[tool.basedpyright]` in
+    `pyproject.toml`.

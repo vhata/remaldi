@@ -44,10 +44,11 @@ target invalidates cached state and replaces any hookless connection to it
 `main.html` is used without probing, as before.
 
 Private windows are therefore invisible to `state`, `workspace switch` and
-`command run`. Covering them means a connection per context, merged state and
-dispatch routed to the owning context, which is recorded as
-`per-profile-ui-contexts` in `TODO.md`. With several regular profiles the first
-non-incognito target still wins, which is no worse than before.
+`command run`. Covering them would mean a connection per context, merged state
+and dispatch routed to the owning context; on 2026-10-14 the user decided
+Remaldi does not need to control Private windows, so that work is not queued.
+With several regular profiles the first non-incognito target still wins, which
+is no worse than before.
 
 ## 2026-10-13: Curate the command allowlist from Vivaldi's bundle
 
