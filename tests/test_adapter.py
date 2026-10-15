@@ -4,7 +4,7 @@ import unittest
 from collections.abc import Iterable
 from unittest.mock import AsyncMock
 
-from remaldi.adapter import SNAPSHOT, VivaldiAdapter, normalize_snapshot
+from remaldi.adapter import SNAPSHOT, VivaldiAdapter, _select_window, normalize_snapshot
 from remaldi.errors import ControlError
 from remaldi.protocol import JsonObject
 
@@ -443,3 +443,111 @@ class WorkspaceSnapshotTests(unittest.IsolatedAsyncioTestCase):
         before = json.loads(json.dumps(raw))
         normalize_snapshot(raw)
         self.assertEqual(raw, before)
+
+
+class WindowListTests(unittest.IsolatedAsyncioTestCase):
+    async def list_windows(self, windows: list[object]) -> object:
+        state: JsonObject = {"windows": windows, "capabilities": {"workspace_switch": True}}
+        return await VivaldiAdapter(FakeController(state)).list_windows()
+
+    async def test_lists_window_fields_and_tab_counts_without_tab_content(self) -> None:
+        windows: list[object] = [
+            {
+                "id": 7,
+                "focused": True,
+                "state": "maximized",
+                "type": "normal",
+                "incognito": False,
+                "left": 0,
+                "top": 0,
+                "tabs": [
+                    {"id": 1, "title": "Secret title", "url": "https://private.example/"},
+                    {"id": 2, "title": "Other title", "url": "https://other.example/"},
+                ],
+            },
+            {"id": 9, "focused": False, "state": "minimized", "type": "popup", "tabs": []},
+        ]
+        result = await self.list_windows(windows)
+        self.assertEqual(
+            result,
+            {
+                "default_window_id": 7,
+                "windows": [
+                    {
+                        "id": 7,
+                        "focused": True,
+                        "state": "maximized",
+                        "type": "normal",
+                        "tab_count": 2,
+                    },
+                    {
+                        "id": 9,
+                        "focused": False,
+                        "state": "minimized",
+                        "type": "popup",
+                        "tab_count": 0,
+                    },
+                ],
+            },
+        )
+        encoded = json.dumps(result)
+        for private in ["Secret title", "Other title", "private.example", "other.example"]:
+            self.assertNotIn(private, encoded)
+
+    async def test_default_window_follows_the_selection_rule(self) -> None:
+        for windows in [
+            [{"id": 7, "focused": True}, {"id": 9, "focused": False}],
+            [{"id": 7, "focused": False}, {"id": 9, "focused": True}],
+            [{"id": 7, "focused": False}, {"id": 9, "focused": False}],
+            [{"id": 7, "focused": True}, {"id": 9, "focused": True}],
+            [{"id": 7, "focused": 1}],
+            [],
+        ]:
+            with self.subTest(windows=windows):
+                state: JsonObject = {"windows": windows}
+                try:
+                    expected: int | None = _select_window(state, None)
+                except ControlError as error:
+                    self.assertEqual(error.code, "ambiguous_window")
+                    expected = None
+                result = await self.list_windows(list(windows))
+                self.assertIsInstance(result, dict)
+                assert isinstance(result, dict)
+                self.assertEqual(result["default_window_id"], expected)
+
+    async def test_unusable_window_fields_are_null(self) -> None:
+        windows: list[object] = [
+            {"id": True, "focused": "yes", "state": 3, "type": None, "tabs": "many"},
+            {"focused": False},
+            "not a window",
+        ]
+        self.assertEqual(
+            await self.list_windows(windows),
+            {
+                "default_window_id": None,
+                "windows": [
+                    {"id": None, "focused": False, "state": None, "type": None, "tab_count": None},
+                    {"id": None, "focused": False, "state": None, "type": None, "tab_count": None},
+                ],
+            },
+        )
+
+    async def test_focused_window_without_a_usable_id_is_not_the_default(self) -> None:
+        result = await self.list_windows([{"id": "7", "focused": True}])
+        self.assertIsInstance(result, dict)
+        assert isinstance(result, dict)
+        self.assertIsNone(result["default_window_id"])
+
+    async def test_reads_the_cached_snapshot_unless_refreshed(self) -> None:
+        state: JsonObject = {
+            "windows": [{"id": 7, "focused": True, "tabs": []}],
+            "capabilities": {},
+        }
+        controller = FakeController(state)
+        adapter = VivaldiAdapter(controller)
+        await adapter.list_windows()
+        await adapter.list_windows()
+        self.assertEqual(controller.request.await_count, 1)
+        await adapter.list_windows(refresh=True)
+        self.assertEqual(controller.request.await_count, 2)
+        self.assertEqual(controller.request.await_args_list[0].args[1]["expression"], SNAPSHOT)

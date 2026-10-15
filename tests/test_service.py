@@ -2,8 +2,9 @@ import asyncio
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
+from remaldi.adapter import WindowList
 from remaldi.client import exchange
 from remaldi.errors import ControlError
 from remaldi.protocol import JsonObject
@@ -77,3 +78,28 @@ class ServiceDeadlineTests(unittest.IsolatedAsyncioTestCase):
             self.service.adapter.mutation_lock.release()
         await asyncio.sleep(0.02)
         self.assertEqual(executed, [])
+
+
+class WindowListServiceTests(unittest.IsolatedAsyncioTestCase):
+    async def test_window_list_validates_and_forwards_refresh(self) -> None:
+        service = Service("http://127.0.0.1:1")
+        listed: WindowList = {"default_window_id": None, "windows": []}
+        list_windows = self.enterContext(
+            patch.object(service.adapter, "list_windows", AsyncMock(return_value=listed))
+        )
+        for params, refresh in [
+            ({}, False),
+            ({"refresh": False}, False),
+            ({"refresh": True}, True),
+        ]:
+            with self.subTest(params=params):
+                list_windows.reset_mock()
+                result = await service.dispatch(
+                    {"version": 1, "operation": "window.list", "params": params}
+                )
+                self.assertEqual(result, listed)
+                list_windows.assert_awaited_once_with(refresh=refresh)
+        for bad in [{"refresh": 1}, {"refresh": "yes"}, {"window_id": 7}]:
+            with self.subTest(params=bad), self.assertRaises(ControlError) as caught:
+                await service.dispatch({"version": 1, "operation": "window.list", "params": bad})
+            self.assertEqual(caught.exception.code, "invalid_parameters")
