@@ -5,9 +5,10 @@ import time
 import urllib.error
 import urllib.request
 from collections.abc import Callable
+from typing import cast
 
 from .errors import ControlError
-from .protocol import JsonObject
+from .protocol import JsonObject, JsonValue
 from .transport import CDPConnection
 
 UI_SUFFIX = "mpognobbkildjkofajifpdfhcoklimli/main.html"
@@ -75,10 +76,12 @@ class Browser:
         # Local discovery must not inherit HTTP proxy configuration.
         opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
         with opener.open(self.endpoint + "/json/list", timeout=2) as response:
-            targets = json.load(response)
+            targets: JsonValue = json.load(response)
         if not isinstance(targets, list):
             raise ValueError("Debugger returned a non-list target document")
-        return targets
+        # Entries are not checked one by one: refresh reads each as an object, and
+        # its catch-all reports a malformed entry as an unavailable endpoint.
+        return cast(list[JsonObject], targets)
 
     async def refresh(self) -> None:
         async with self.lock:

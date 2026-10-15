@@ -8,7 +8,7 @@ from typing import Any, Protocol, TypedDict, cast
 
 from .commands import DENIED, LOCAL_ACTIONS, REGISTERED_COMMANDS, VIVALDI_VERSION
 from .errors import ControlError
-from .protocol import JsonObject
+from .protocol import JsonObject, JsonValue
 
 MAX_SAFE_INTEGER = 2**53 - 1
 
@@ -206,16 +206,19 @@ def _safe_id(value: object) -> int | None:
     return None
 
 
-def _workspaces(reading: object) -> list[JsonObject] | None:
+def _workspaces(reading: JsonValue) -> list[JsonObject] | None:
     """Validate the workspace preference reading; None unless the whole list is well formed."""
     if not isinstance(reading, dict) or "error" in reading:
         return None
     preference = reading.get("result")
-    if not isinstance(preference, dict) or not isinstance(preference.get("value"), list):
+    if not isinstance(preference, dict):
+        return None
+    items = preference.get("value")
+    if not isinstance(items, list):
         return None
     workspaces: list[JsonObject] = []
     seen: set[int] = set()
-    for item in preference["value"]:
+    for item in items:
         if not isinstance(item, dict):
             return None
         identifier = _safe_id(item.get("id"))
@@ -239,7 +242,7 @@ def _tab_workspace(tab: JsonObject) -> int | None:
     if not isinstance(data, str):
         return None
     try:
-        parsed = json.loads(data)
+        parsed: JsonValue = json.loads(data)
     except (ValueError, RecursionError):
         return None
     if not isinstance(parsed, dict) or parsed.get("panelId") is not None:
@@ -255,12 +258,15 @@ def _tab_workspace(tab: JsonObject) -> int | None:
     return _safe_id(identifier)
 
 
-def _window(window: object) -> object:
-    if not isinstance(window, dict) or not isinstance(window.get("tabs"), list):
+def _window(window: JsonValue) -> JsonValue:
+    if not isinstance(window, dict):
         return window
-    tabs = [
+    items = window.get("tabs")
+    if not isinstance(items, list):
+        return window
+    tabs: list[JsonValue] = [
         {**tab, "workspace_id": _tab_workspace(tab)} if isinstance(tab, dict) else tab
-        for tab in window["tabs"]
+        for tab in items
     ]
     return {**window, "tabs": tabs}
 
@@ -346,7 +352,7 @@ class VivaldiAdapter:
     def invalidate(self) -> None:
         self.revision += 1
 
-    async def evaluate(self, expression: str) -> Any:
+    async def evaluate(self, expression: str) -> JsonValue:
         response = await self.controller.request(
             "Runtime.evaluate",
             {"expression": expression, "awaitPromise": True, "returnByValue": True},
@@ -360,7 +366,8 @@ class VivaldiAdapter:
         result = response.get("result", {})
         if "value" not in result:
             raise ControlError("unsupported_result", "Browser did not return a JSON value.")
-        return result["value"]
+        value: JsonValue = result["value"]
+        return value
 
     async def snapshot(self, *, refresh: bool = False) -> JsonObject:
         sequence = self.refresh_sequence

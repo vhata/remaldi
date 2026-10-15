@@ -395,13 +395,14 @@ class CommandServiceTests(unittest.IsolatedAsyncioTestCase):
                 service.adapter, "run_command", AsyncMock(return_value={"dispatched": True})
             )
         )
-        params = {"name": "COMMAND_PIN_TAB", "parameter": None, "window_id": 7}
+        params: JsonObject = {"name": "COMMAND_PIN_TAB", "parameter": None, "window_id": 7}
         result = await service.dispatch(
             {"version": 1, "operation": "command.run", "params": params}
         )
         self.assertEqual(result, {"dispatched": True})
         run_command.assert_awaited_once_with(**params)
-        for bad in [{}, {"name": "COMMAND_PIN_TAB", "binding": "x"}]:
+        bad_params: list[JsonObject] = [{}, {"name": "COMMAND_PIN_TAB", "binding": "x"}]
+        for bad in bad_params:
             with self.subTest(params=bad), self.assertRaises(ControlError) as caught:
                 await service.dispatch({"version": 1, "operation": "command.run", "params": bad})
             self.assertEqual(caught.exception.code, "invalid_parameters")

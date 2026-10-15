@@ -7,13 +7,13 @@ import urllib.parse
 
 from .client import call
 from .errors import ControlError
-from .protocol import JsonObject
+from .protocol import JsonObject, JsonValue
 from .service import serve
 
 
 def json_object(value: str) -> JsonObject:
     try:
-        result = json.loads(value)
+        result: JsonValue = json.loads(value)
     except ValueError as exc:
         raise argparse.ArgumentTypeError(str(exc)) from exc
     if not isinstance(result, dict):

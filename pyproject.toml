@@ -67,7 +67,7 @@ ignore = [
   "EM101",
   "EM102",
   "TRY003",
-  # Decoded JSON is typed Any at the DevTools and socket boundaries.
+  # Operation results and error details stay Any between the layers.
   "ANN401",
   # Asserts narrow types for invariants the code already guarantees.
   "S101",

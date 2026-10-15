@@ -13,7 +13,7 @@ from .adapter import VivaldiAdapter, WindowList
 from .browser import Browser
 from .commands import VIVALDI_VERSION, command_list
 from .errors import ControlError
-from .protocol import MAX_MESSAGE, JsonObject
+from .protocol import MAX_MESSAGE, JsonObject, JsonValue
 from .runtime import lock_file, runtime_dir
 
 REQUEST_TIMEOUT = 12
@@ -69,11 +69,11 @@ class Service:
         if set(params) - allowed or required - set(params):
             raise ControlError("invalid_parameters", "Unexpected or missing operation parameters.")
 
-    async def dispatch(self, request: object) -> Any:
+    async def dispatch(self, request: JsonValue) -> Any:
         if not isinstance(request, dict) or request.get("version") != PROTOCOL_VERSION:
             raise ControlError("protocol_mismatch", "Expected protocol version 1.")
         operation = request.get("operation")
-        params = request.get("params", {})
+        params: JsonValue = request.get("params", {})
         if not isinstance(operation, str) or not isinstance(params, dict):
             raise ControlError(
                 "invalid_request", "Operation must be a string and params an object."
@@ -98,16 +98,19 @@ class Service:
             return {"service": "stopping"}
         if operation == "raw":
             self.validate(params, {"method", "params", "target"}, {"method"})
+            method = params["method"]
+            devtools_params: JsonValue = params.get("params", {})
+            target = params.get("target")
             if (
-                not isinstance(params["method"], str)
-                or not isinstance(params.get("params", {}), dict)
-                or (params.get("target") is not None and not isinstance(params["target"], str))
+                not isinstance(method, str)
+                or not isinstance(devtools_params, dict)
+                or (target is not None and not isinstance(target, str))
             ):
                 raise ControlError(
                     "invalid_parameters", "Invalid DevTools method, params, or target."
                 )
             try:
-                return await self.browser.request(**params)
+                return await self.browser.request(method, devtools_params, target)
             finally:
                 self.adapter.invalidate()
         handler = self.operations.get(operation)
@@ -123,7 +126,7 @@ class Service:
                 if not line:
                     break
                 try:
-                    request = json.loads(line)
+                    request: JsonValue = json.loads(line)
                     identifier = request.get("id") if isinstance(request, dict) else None
                     try:
                         result = await asyncio.wait_for(self.dispatch(request), REQUEST_TIMEOUT)

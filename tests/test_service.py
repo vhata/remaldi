@@ -121,3 +121,43 @@ class RefreshParameterTests(unittest.IsolatedAsyncioTestCase):
                     await service.dispatch({"version": 1, "operation": operation, "params": bad})
                 self.assertEqual(caught.exception.code, "invalid_parameters")
                 handler.assert_not_awaited()
+
+
+class RawDispatchTests(unittest.IsolatedAsyncioTestCase):
+    async def test_raw_forwards_method_params_and_target(self) -> None:
+        service = Service("http://127.0.0.1:1")
+        request = self.enterContext(
+            patch.object(service.browser, "request", AsyncMock(return_value={"product": "x"}))
+        )
+        revision = service.adapter.revision
+        result = await service.dispatch(
+            {
+                "version": 1,
+                "operation": "raw",
+                "params": {"method": "Target.getTargets", "params": {"a": 1}, "target": "t"},
+            }
+        )
+        self.assertEqual(result, {"product": "x"})
+        request.assert_awaited_once_with("Target.getTargets", {"a": 1}, "t")
+        self.assertEqual(service.adapter.revision, revision + 1)
+        request.reset_mock()
+        await service.dispatch(
+            {"version": 1, "operation": "raw", "params": {"method": "Browser.getVersion"}}
+        )
+        request.assert_awaited_once_with("Browser.getVersion", {}, None)
+
+    async def test_raw_rejects_invalid_method_params_or_target(self) -> None:
+        service = Service("http://127.0.0.1:1")
+        request = self.enterContext(patch.object(service.browser, "request", AsyncMock()))
+        bad_params: list[JsonObject] = [
+            {"method": 1},
+            {"method": "Browser.getVersion", "params": None},
+            {"method": "Browser.getVersion", "params": []},
+            {"method": "Browser.getVersion", "target": 7},
+        ]
+        for bad in bad_params:
+            with self.subTest(params=bad), self.assertRaises(ControlError) as caught:
+                await service.dispatch({"version": 1, "operation": "raw", "params": bad})
+            self.assertEqual(caught.exception.code, "invalid_parameters")
+            self.assertEqual(str(caught.exception), "Invalid DevTools method, params, or target.")
+        request.assert_not_awaited()
