@@ -105,6 +105,7 @@ enable_error_code = [
 pythonVersion = "3.12"
 include = ["remaldi", "tests", "scripts", "bin"]
 typeCheckingMode = "standard"
+strict = ["remaldi"]
 
 [tool.pytest]
 minversion = "9.0"
