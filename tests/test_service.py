@@ -126,8 +126,10 @@ class RefreshParameterTests(unittest.IsolatedAsyncioTestCase):
 class RawDispatchTests(unittest.IsolatedAsyncioTestCase):
     async def test_raw_forwards_method_params_and_target(self) -> None:
         service = Service("http://127.0.0.1:1")
+        # autospec binds calls to Browser.request's signature, so the assertions
+        # hold whether arguments are passed by position or by keyword.
         request = self.enterContext(
-            patch.object(service.browser, "request", AsyncMock(return_value={"product": "x"}))
+            patch.object(service.browser, "request", autospec=True, return_value={"product": "x"})
         )
         revision = service.adapter.revision
         result = await service.dispatch(

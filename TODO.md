@@ -56,17 +56,25 @@ and 2026-10-14.
 
 - [BROWSER] `non-object-devtools-results` — **Treat a non-object DevTools `result` as an unsupported result rather than crashing on it.** Several readers assume the `result` field of a DevTools response is an object.
   - Source: `pyright-strict-application` PR, 2026-10-14.
-  - `VivaldiAdapter.evaluate` (`adapter.py`): a numeric `result` makes
-    `"value" not in result` raise `TypeError`, which `service.handle`
-    reports as `invalid_request` instead of `unsupported_result`; a string
-    `result` gets a substring check.
+  - `VivaldiAdapter.evaluate` (`adapter.py`): a list `result` makes
+    `response.get` raise `AttributeError`, which `service.handle` does not
+    catch, so the socket closes without a reply and the client reports
+    `unknown_outcome`. A numeric `result`, or a string containing
+    `value`, raises `TypeError`, which `service.handle` reports as
+    `invalid_request` instead of `unsupported_result`.
   - `_probe_incognito` and the event-hook setup in `browser.py`:
     `result.get("result", {}).get("value")` raises `AttributeError` on a
     non-object result. In the probe this is outside the `try`, so one bad
     probe marks the whole endpoint `endpoint_unavailable` instead of leaving
-    that target unclassified.
-  - `Transport._read` (`transport.py`): a non-object frame or an unhashable
-    `id` ends the connection. DevTools is not known to send either.
+    that target unclassified; in the hook setup, reached through
+    `Browser.request`, it closes the socket as above.
+  - `Browser.refresh` assigns `self.targets` before indexing each entry, so
+    a malformed `/json/list` entry is visible to a concurrent `status`
+    (which takes no lock) until `close()` clears it.
+  - `CDPConnection._read` (`transport.py`): a numeric or `null` frame, a
+    string frame containing `id`, or an unhashable `id` ends the
+    connection; list frames and other strings are routed to `on_event`.
+    DevTools is not known to send any of these.
   - Triage outcome needed: whether any of these is worth a change, given
     that Chrome's protocol always returns an object here.
 
