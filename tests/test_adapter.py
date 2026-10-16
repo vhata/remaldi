@@ -458,6 +458,11 @@ class WorkspaceSnapshotTests(unittest.IsolatedAsyncioTestCase):
         self.assert_unsupported(await self.snapshot(None))
         self.assert_unsupported(await self.snapshot(...))
 
+    def test_windows_without_a_tab_list_pass_through(self) -> None:
+        windows = ["not a window", {"id": 7}, {"id": 8, "tabs": None}]
+        state = normalize_snapshot({"windows": windows, "capabilities": {}})
+        self.assertEqual(state["windows"], windows)
+
     def test_normalize_does_not_mutate_browser_value(self) -> None:
         raw = {
             "windows": [{"id": 7, "tabs": [tab(1, {"workspaceId": WORKSPACE_A})]}],

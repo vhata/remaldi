@@ -1,5 +1,32 @@
 # Decisions
 
+## 2026-10-14: Type decoded JSON as JsonValue for basedpyright strict mode
+
+basedpyright runs in strict mode over `remaldi/` through the `strict`
+setting in `pyproject.toml`, so tests, scripts and `bin` keep standard mode
+and one invocation covers both. It supersedes the 2026-10-13 choice below to
+run standard mode everywhere. Strict mode's errors came from `isinstance`
+checks on values typed `object` or `Any`, which narrow to
+`dict[Unknown, Unknown]` and `list[Unknown]`. `remaldi/protocol.py` now
+defines a recursive `JsonValue` alias for what `json.loads` returns. A
+decoded value is annotated with it where it is first inspected (socket
+requests in `service.py`, the `/json/list` document, evaluation results,
+tabs' extension data and `raw --params`), so the existing `isinstance`
+checks narrow to `dict[str, JsonValue]` and `list[JsonValue]`, and the code
+reads the narrowed value rather than indexing the container a second time.
+
+`JsonObject` keeps `dict[str, Any]` values. It types the objects Remaldi
+builds and passes between its own layers (operation parameters, snapshots,
+results), and `JsonValue` values there would need a check on every read,
+in the tests as well. The cost is that strict mode reports unknown types,
+not `Any`, so a value read from a `JsonObject` is still unchecked by either
+type checker. `transport.py` and `client.py` keep their `Any`-typed
+messages: typing them as `JsonValue` would mean choosing a behaviour for
+frames that are not objects, which DevTools and the service never send, and
+that is a behaviour change rather than a typing one. The `/json/list`
+entries are cast to `JsonObject` without a per-entry check, because
+`refresh` already reports a malformed entry as an unavailable endpoint.
+
 ## 2026-10-14: List windows through a service operation
 
 `window list` is a `window.list` operation in the service registry rather

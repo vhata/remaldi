@@ -47,6 +47,37 @@ and 2026-10-14.
     whether bot PRs are exempted in the workflow, rewritten before merge, or
     the tool is left out.
 
+- [CLIENT] `client-malformed-response-errors` — **Report a malformed service response as `protocol_mismatch` instead of a traceback.** `client.exchange` catches only timeouts, connection errors and invalid JSON, so a response that is not an object, or lacks `error`, `code`, `message` or `result`, escapes as `AttributeError`, `KeyError` or `TypeError`.
+  - Source: `pyright-strict-application` PR, 2026-10-14; found while typing
+    decoded JSON, left unfixed because the fix chooses new error behaviour.
+  - Starting point: `exchange` in `client.py`; `JsonValue` in `protocol.py`.
+  - Only a broken or mismatched service would send such a response, so the
+    value is a clean error rather than a reachable failure in normal use.
+
+- [BROWSER] `non-object-devtools-results` — **Treat a non-object DevTools `result` as an unsupported result rather than crashing on it.** Several readers assume the `result` field of a DevTools response is an object.
+  - Source: `pyright-strict-application` PR, 2026-10-14.
+  - `VivaldiAdapter.evaluate` (`adapter.py`): a list `result` makes
+    `response.get` raise `AttributeError`, which `service.handle` does not
+    catch, so the socket closes without a reply and the client reports
+    `unknown_outcome`. A numeric `result`, or a string containing
+    `value`, raises `TypeError`, which `service.handle` reports as
+    `invalid_request` instead of `unsupported_result`.
+  - `_probe_incognito` and the event-hook setup in `browser.py`:
+    `result.get("result", {}).get("value")` raises `AttributeError` on a
+    non-object result. In the probe this is outside the `try`, so one bad
+    probe marks the whole endpoint `endpoint_unavailable` instead of leaving
+    that target unclassified; in the hook setup, reached through
+    `Browser.request`, it closes the socket as above.
+  - `Browser.refresh` assigns `self.targets` before indexing each entry, so
+    a malformed `/json/list` entry is visible to a concurrent `status`
+    (which takes no lock) until `close()` clears it.
+  - `CDPConnection._read` (`transport.py`): a numeric or `null` frame, a
+    string frame containing `id`, or an unhashable `id` ends the
+    connection; list frames and other strings are routed to `on_event`.
+    DevTools is not known to send any of these.
+  - Triage outcome needed: whether any of these is worth a change, given
+    that Chrome's protocol always returns an object here.
+
 ## Needs proof of concept
 
 ### P1 High
@@ -154,15 +185,4 @@ and 2026-10-14.
 
 ## Ready for separate work
 
-### P3 Low
-
-- [TOOLING] `pyright-strict-application` — **Run basedpyright in strict mode over `remaldi/`.** Standard mode misses values of unknown type flowing out of decoded JSON.
-  - Source: `uv-tooling` PR, 2026-10-13; strict mode reported 49 errors in
-    `remaldi/` and `scripts/` at the time, nearly all `dict[Unknown, Unknown]`
-    from `json.loads` and `.get`.
-  - Strict mode over `remaldi/` alone reported 45 errors on 2fa2c89
-    (2026-10-14): 25 in `adapter.py`, 18 in `service.py`, one each in
-    `__main__.py` and `browser.py`, all `reportUnknown*`.
-  - Starting point: a JSON value type at the DevTools and socket boundaries in
-    `transport.py`, `service.py` and `client.py`; `[tool.basedpyright]` in
-    `pyproject.toml`.
+No entries.

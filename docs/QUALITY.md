@@ -51,8 +51,9 @@ from `typos.toml`, `.editorconfig` (which shfmt reads) and
 
 - Ruff formatting and lint. Lint selects every rule; the ignore list in
   `pyproject.toml` gives the reason for each exclusion.
-- Strict mypy and basedpyright (standard mode) over `remaldi`, `tests` and
-  `scripts`; basedpyright also reads `bin`.
+- Strict mypy over `remaldi`, `tests` and `scripts`, and basedpyright over
+  the same plus `bin`: strict mode for `remaldi` (the `strict` setting in
+  `pyproject.toml`), standard mode for the rest.
 - shfmt and shellcheck over `scripts/*.sh`, actionlint and zizmor (offline)
   over the workflows, and typos over the tree.
 - Whitespace errors, conflict markers, TOML and YAML syntax, and shebangs that
