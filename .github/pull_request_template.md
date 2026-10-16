@@ -14,9 +14,7 @@ markers go one per line; direct user requests need no invented queue entry. -->
 ## Validation
 
 <!-- Commands actually run, results, and limits. Finding fixes need a runnable
-scenario with setup, actions, old failure, and expected corrected behavior. -->
-
-## Review
-
-<!-- Independent reviewer, exact reviewed commit, scope, checks, findings and
-verified dispositions. Keep draft while checks or review remain incomplete. -->
+scenario with setup, actions, old failure, and expected corrected behavior.
+The independent review is posted as a PR comment, not here: this body
+becomes the squash commit message. Keep draft while checks or review remain
+incomplete. -->

@@ -151,7 +151,7 @@ run is not a pass. GitHub schedules are best-effort and can become inactive.
 
 The repository became public on 2026-10-07 and branch protection was applied the
 same day: a pull request is required with zero approving reviews (independent
-agent review is recorded in `## Review`); required checks `check (ubuntu-latest)`
+agent review is recorded in a PR comment); required checks `check (ubuntu-latest)`
 and `check (macos-latest)`; branches need not be up to date with `main` before
 merging; linear history required; conversation resolution not required; force
 pushes and deletions on `main` allowed for the owner (agents never use them); not
@@ -190,6 +190,7 @@ reads from this project.
 
 ## PR evidence
 
-Every PR lists the commands run and their results, a reproducible scenario for
-behaviour changes, what was not run and why, and the independent review. See
-[docket/CODE_REVIEW_GUIDE.md](../docket/CODE_REVIEW_GUIDE.md).
+Every PR body lists the commands run and their results, a reproducible scenario
+for behaviour changes, and what was not run and why. The independent review is
+posted as a PR comment rather than in the body, which becomes the squash commit
+message. See [docket/CODE_REVIEW_GUIDE.md](../docket/CODE_REVIEW_GUIDE.md).
