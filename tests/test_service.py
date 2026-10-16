@@ -99,12 +99,14 @@ class RefreshParameterTests(unittest.IsolatedAsyncioTestCase):
                 listed,
             ),
         }
+        accepted: list[tuple[JsonObject, bool]] = [
+            ({}, False),
+            ({"refresh": False}, False),
+            ({"refresh": True}, True),
+        ]
+        rejected: list[JsonObject] = [{"refresh": 1}, {"refresh": "yes"}, {"window_id": 7}]
         for operation, (handler, expected) in handlers.items():
-            for params, refresh in [
-                ({}, False),
-                ({"refresh": False}, False),
-                ({"refresh": True}, True),
-            ]:
+            for params, refresh in accepted:
                 with self.subTest(operation=operation, params=params):
                     handler.reset_mock()
                     result = await service.dispatch(
@@ -113,7 +115,7 @@ class RefreshParameterTests(unittest.IsolatedAsyncioTestCase):
                     self.assertEqual(result, expected)
                     handler.assert_awaited_once_with(refresh=refresh)
             handler.reset_mock()
-            for bad in [{"refresh": 1}, {"refresh": "yes"}, {"window_id": 7}]:
+            for bad in rejected:
                 with (
                     self.subTest(operation=operation, params=bad),
                     self.assertRaises(ControlError) as caught,
