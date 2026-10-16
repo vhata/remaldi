@@ -30,6 +30,10 @@ def main() -> int:
         commands.add_parser(name)
     state = commands.add_parser("state")
     state.add_argument("--refresh", action="store_true")
+    window = commands.add_parser("window")
+    window_actions = window.add_subparsers(dest="action", required=True)
+    window_list = window_actions.add_parser("list")
+    window_list.add_argument("--refresh", action="store_true")
     raw = commands.add_parser("raw")
     raw.add_argument("method")
     raw.add_argument("--params", type=json_object, default={})
@@ -72,6 +76,9 @@ def main() -> int:
         operation = args.command
         params: JsonObject = {}
         if operation == "state":
+            params = {"refresh": args.refresh}
+        elif operation == "window":
+            operation = "window.list"
             params = {"refresh": args.refresh}
         elif operation == "raw":
             params = {

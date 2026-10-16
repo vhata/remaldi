@@ -35,6 +35,10 @@ The archived `reference/vivaldiws` is historical context, not a runtime dependen
   `remaldi/commands.py`, which records the Vivaldi version it was taken from,
   and never dispatches a user-defined chain. It selects windows as workspace
   switching does and its result likewise confirms dispatch only.
+- Window listing projects the snapshot's windows to their IDs and status
+  fields, never tab content, and marks the window that switching and command
+  dispatch select by default using the same adapter rule, so the two cannot
+  disagree when that rule changes.
 
 ## Failure and acceptance invariants
 

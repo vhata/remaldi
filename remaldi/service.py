@@ -9,7 +9,7 @@ from logging.handlers import RotatingFileHandler
 from typing import Any
 
 from . import PROTOCOL_VERSION
-from .adapter import VivaldiAdapter
+from .adapter import VivaldiAdapter, WindowList
 from .browser import Browser
 from .commands import VIVALDI_VERSION, command_list
 from .errors import ControlError
@@ -29,16 +29,26 @@ class Service:
         self.stopping = asyncio.Event()
         self.operations: dict[str, Callable[[JsonObject], Awaitable[Any]]] = {
             "state": self.state,
+            "window.list": self.window_list,
             "workspace.switch": self.workspace_switch,
             "command.list": self.command_list,
             "command.run": self.command_run,
         }
 
     async def state(self, params: JsonObject) -> JsonObject:
-        self.validate(params, {"refresh"})
-        if "refresh" in params and not isinstance(params["refresh"], bool):
+        return await self.adapter.snapshot(refresh=self.refresh_flag(params))
+
+    async def window_list(self, params: JsonObject) -> WindowList:
+        return await self.adapter.list_windows(refresh=self.refresh_flag(params))
+
+    @classmethod
+    def refresh_flag(cls, params: JsonObject) -> bool:
+        """Validate parameters that may hold only a boolean refresh flag and return it."""
+        cls.validate(params, {"refresh"})
+        refresh: object = params.get("refresh", False)
+        if not isinstance(refresh, bool):
             raise ControlError("invalid_parameters", "refresh must be boolean.")
-        return await self.adapter.snapshot(refresh=params.get("refresh", False))
+        return refresh
 
     async def workspace_switch(self, params: JsonObject) -> Any:
         self.validate(params, {"workspace_id", "window_id"}, {"workspace_id"})

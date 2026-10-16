@@ -53,14 +53,15 @@ and 2026-10-14.
 
 - [STATE] `last-focused-window-default` — **Default `workspace switch` and `command run` to the most recently focused Vivaldi window.** The default now needs exactly one window with `focused: true`, and Chrome sets that only while Vivaldi has OS focus, so running `remaldi` from a terminal in front of Vivaldi fails with `ambiguous_window` in what the user expects to be the most common case.
   - Source: user request, 2026-10-13, after the `regular-profile-ui-target` fix.
-  - Starting point: `_select_window` in `adapter.py`; the
-    `chrome.windows.onFocusChanged` hook in `EVENT_HOOKS` (`browser.py`);
-    `chrome.windows.getLastFocused`.
+  - Starting point: `_default_window` in `adapter.py`, which both window
+    selection and `window list` use; the `chrome.windows.onFocusChanged`
+    hook in `EVENT_HOOKS` (`browser.py`); `chrome.windows.getLastFocused`.
   - Open questions: whether `getLastFocused` returns the last Vivaldi window
     while another app has focus, or whether the UI context must record focus
     changes itself (and what happens after a service or UI reload, before any
     focus change is seen); how minimized windows and windows closed since are
-    handled; whether `state` should mark the window the default would pick.
+    handled. `window list` already reports the window the default would
+    pick as `default_window_id`, so a new rule shows up there unchanged.
   - Unverified: `focused` being false for every window while another app is
     frontmost is Chrome's documented behaviour, not observed in Vivaldi.
   - Experiment: with a terminal frontmost, read `focused` on every window and
@@ -70,7 +71,6 @@ and 2026-10-14.
   - Acceptance: an observed answer to whether `getLastFocused` is usable, or
     a design for recording focus in the UI context, ready for a Ready
     implementation entry.
-  - Related: `list-window-ids`
 
 ### P2 Normal
 
@@ -153,20 +153,6 @@ and 2026-10-14.
     (events carry URLs and titles).
 
 ## Ready for separate work
-
-### P2 Normal
-
-- [CLIENT] `list-window-ids` — **Add a command that lists window IDs for `--window-id`.** `workspace switch` and `command run` both take `--window-id`, and the only way to find one is to filter `state` output with `jq` as the README shows.
-  - Source: user request during the `regular-profile-ui-target` fix, 2026-10-13.
-  - Starting point: `_select_window` in `adapter.py`; the `windows` field of
-    the snapshot; `__main__.py`.
-  - Shape: a `remaldi window list` command (or similar) printing each
-    window's `id`, `focused`, `state`, `type` and tab count, with no tab
-    titles or URLs. The implementer settles the name and whether it marks the
-    window the focused-window default would select; that marking follows
-    whatever rule `_select_window` applies at the time, so this entry does not
-    wait for `last-focused-window-default`.
-  - Related: `last-focused-window-default`
 
 ### P3 Low
 

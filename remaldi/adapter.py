@@ -4,7 +4,7 @@ import asyncio
 import json
 import re
 import time
-from typing import Any, Protocol
+from typing import Any, Protocol, TypedDict, cast
 
 from .commands import DENIED, LOCAL_ACTIONS, REGISTERED_COMMANDS, VIVALDI_VERSION
 from .errors import ControlError
@@ -280,6 +280,48 @@ def normalize_snapshot(raw: JsonObject) -> JsonObject:
     return state
 
 
+class WindowSummary(TypedDict):
+    id: int | None
+    focused: bool
+    state: str | None
+    type: str | None
+    tab_count: int | None
+
+
+class WindowList(TypedDict):
+    default_window_id: int | None
+    windows: list[WindowSummary]
+
+
+def _window_id(value: object) -> int | None:
+    """Return a value usable as window_id, or None."""
+    return value if isinstance(value, int) and not isinstance(value, bool) else None
+
+
+def _text(value: object) -> str | None:
+    return value if isinstance(value, str) else None
+
+
+def _objects(value: object) -> list[dict[str, object]]:
+    """Return the objects in a decoded JSON list, skipping other items."""
+    if not isinstance(value, list):
+        return []
+    items = cast("list[object]", value)
+    return [cast("dict[str, object]", item) for item in items if isinstance(item, dict)]
+
+
+def _window_summary(window: dict[str, object]) -> WindowSummary:
+    """Project a snapshot window to its ID and status; no tab content is copied."""
+    tabs = window.get("tabs")
+    return {
+        "id": _window_id(window.get("id")),
+        "focused": window.get("focused") is True,
+        "state": _text(window.get("state")),
+        "type": _text(window.get("type")),
+        "tab_count": len(cast("list[object]", tabs)) if isinstance(tabs, list) else None,
+    }
+
+
 class Controller(Protocol):
     generation: int
 
@@ -341,6 +383,15 @@ class VivaldiAdapter:
                 self.updated = time.monotonic()
                 self.refresh_sequence += 1
             return self.cached
+
+    async def list_windows(self, *, refresh: bool = False) -> WindowList:
+        """List the snapshot's windows and the one the default selection would use."""
+        state = await self.snapshot(refresh=refresh)
+        entries = _objects(state.get("windows"))
+        return {
+            "default_window_id": _default_window(entries),
+            "windows": [_window_summary(window) for window in entries],
+        }
 
     async def switch_workspace(self, workspace_id: object, window_id: object = None) -> Any:
         parameter = workspace_parameter(workspace_id)
@@ -420,17 +471,27 @@ class VivaldiAdapter:
         raise ControlError("unsupported_result", unexpected)
 
 
+def _default_window(windows: list[dict[str, object]]) -> int | None:
+    """Return the ID of the window used when none is given: the uniquely focused one.
+
+    None means there is no default, including when that window has no usable
+    ID. ``window list`` reports this choice, so a change to the rule belongs
+    here.
+    """
+    focused = [window for window in windows if window.get("focused") is True]
+    return _window_id(focused[0].get("id")) if len(focused) == 1 else None
+
+
 def _select_window(state: JsonObject, window_id: object) -> int:
-    """Return the explicit window if it exists, or the uniquely focused window."""
-    windows = state.get("windows", [])
+    """Return the explicit window if it exists, or the default window."""
+    windows = _objects(state.get("windows"))
     if window_id is None:
-        focused = [window for window in windows if window.get("focused")]
-        if len(focused) != 1:
+        window_id = _default_window(windows)
+        if window_id is None:
             raise ControlError(
                 "ambiguous_window",
                 "Specify window_id when no unique focused window exists.",
             )
-        window_id = focused[0]["id"]
     if (
         not isinstance(window_id, int)
         or isinstance(window_id, bool)
