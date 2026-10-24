@@ -1,13 +1,38 @@
 # Promoted review work
 
-No findings have been promoted. This is an empty scheduling queue, not a clean
-bill of health or proof that no work is claimed elsewhere.
-
-Add only deliberately promoted, implementation-ready work from a codebase review.
-Use the entry and mapping rules in [the review guide](../docket/CODE_REVIEW_GUIDE.md)
-and check [claim rules](../docket/TODO_GUIDE.md) before selection. Keep raw findings
-in their immutable snapshots, and ordinary discoveries in TODO.
+Implementation-ready work promoted from the first full codebase review.
+These entries are available for separate claims; this review does not
+implement them. Follow [the review guide](../docket/CODE_REVIEW_GUIDE.md)
+and [claim rules](../docket/TODO_GUIDE.md) before selection.
 
 ## Unprioritized
 
-No entries.
+- [BROWSER] `reject-empty-explicit-target` — **Reject an empty explicit target instead of dispatching to the UI.** Default target selection must distinguish omission from an invalid explicit ID.
+  - Source: [full review, 2026-10-24](2026-10-24-0249-full.md).
+  - Findings: `empty-explicit-target-defaults-to-ui`
+  - Starting point: `Browser.request` in `remaldi/browser.py` and raw parameter validation in `remaldi/service.py`.
+  - Acceptance: a fake-server request with `target: ""` returns a structured error with no transmitted DevTools request; omitted target still selects the UI.
+
+- [STATE] `guard-tab-close-window-lifecycle` — **Prevent allowed tab-closing commands from bypassing the window-close denial.** Both close-tab and close-stack reach window closure in inspected Vivaldi 8.2.4133.94 code.
+  - Source: [full review, 2026-10-24](2026-10-24-0249-full.md).
+  - Findings: `close-tab-command-bypasses-window-denial`
+  - Starting point: `REGISTERED_COMMANDS`/`DENIED` in `remaldi/commands.py`; version-scoped static trace in the snapshot.
+  - Acceptance: confirm the handler path for the supported Vivaldi version, then deny these names or prove an equivalent pre-dispatch guard prevents window closure; automate policy checks without operating a live browser.
+
+- [TOOLING] `scan-history-without-filename-blind-spots` — **Scan historical content without losing relevant filename contexts.** A rename to a filename excluded by detect-secrets must not hide content previously committed under a scanned name.
+  - Source: [full review, 2026-10-24](2026-10-24-0249-full.md).
+  - Findings: `historical-secret-filename-suppression`
+  - Starting point: `history_blobs` and historical temporary-file naming in `scripts/audit-secrets.py`.
+  - Acceptance: a synthetic keyword fixture committed as `config.py`, renamed to `poetry.lock` and deleted is detected by a cold audit; no credential values are printed.
+
+- [SERVICE] `normalize-runtime-directory` — **Use the same absolute runtime path in the client and detached daemon.** Relative overrides currently split socket and lock ownership after the child's working-directory change.
+  - Source: [full review, 2026-10-24](2026-10-24-0249-full.md).
+  - Findings: `relative-runtime-splits-client-daemon`
+  - Starting point: `runtime_dir` in `remaldi/runtime.py` and `start_service` in `remaldi/client.py`.
+  - Acceptance: first-use startup from outside the package root with a relative runtime override reaches one daemon at the intended path; status/stop reuse it and absolute socket length is validated.
+
+- [TOOLING] `publish-audit-cache-concurrently` — **Publish clean secret-audit caches safely across simultaneous worktrees.** A fixed shared temporary filename currently makes one clean audit fail.
+  - Source: [full review, 2026-10-24](2026-10-24-0249-full.md).
+  - Findings: `secret-cache-shared-temporary-file`
+  - Starting point: cache publication at the end of `main` in `scripts/audit-secrets.py`.
+  - Acceptance: synchronize two audit processes at cache publication in a disposable repository; both exit successfully and the final cache contains only complete clean entries.

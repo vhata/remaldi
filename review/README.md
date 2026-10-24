@@ -1,8 +1,8 @@
 # Codebase review history
 
-No full or incremental codebase review has been recorded. This is not a claim that
-the project has no defects. Earlier implementation reviews were scoped change
-reviews and are not retroactively represented as full-review snapshots.
+The first full codebase baseline is recorded below. Earlier implementation
+reviews were scoped change reviews and are not retroactively represented
+as full-review snapshots.
 
 New records go here newest first, with link, type, reviewed revision, and unresolved
 count. Follow [the review guide](../docket/CODE_REVIEW_GUIDE.md). The latest record is
@@ -13,6 +13,7 @@ Promoted work lives in [BACKLOG.md](BACKLOG.md). Ordinary discoveries live in
 
 | Review (UTC) | Type | Reviewed commit | Open findings at close |
 | --- | --- | --- | --- |
+| [2026-10-24 02:49](2026-10-24-0249-full.md) | Full | `6f908c87794f2f8cdb8d5e70de42bab8ba408c5b` | 7 |
 
 ## Pending reconciliation
 
