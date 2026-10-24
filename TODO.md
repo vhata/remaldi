@@ -183,6 +183,20 @@ and 2026-10-14.
     version, which sources are exposed, and back-pressure, filtering and privacy
     (events carry URLs and titles).
 
+## Waiting
+
+### P1 High
+
+- [TOOLING] `confirm-main-validation-recovery` — **Confirm daily validation recovers on main after the dependency update.** A passing fix branch does not establish main recovery.
+  - Source: [failed main validation](https://github.com/vhata/remaldi/actions/runs/40097690726), 2026-10-24.
+  - Evidence: the dependency audit reports 14 vulnerabilities across three
+    locked development dependencies; the shared gate and package build pass.
+    Daily validation first failed on 2026-10-21.
+  - Starting point: the Main validation workflow and its dependency audit.
+  - Blocked by: user-controlled landing of the dependency update.
+  - Acceptance: record a successful Main validation run on main containing
+    the updated lockfile, including the dependency audit, before closing.
+
 ## Ready for separate work
 
 No entries.
