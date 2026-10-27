@@ -20,6 +20,8 @@ ALWAYS_DENIED = {
     "COMMAND_EXIT",
     "COMMAND_QUIT_MAC_MAYBE_WARN",
     "COMMAND_CLOSE_WINDOW",
+    "COMMAND_CLOSE_TAB",
+    "COMMAND_TAB_STACK_CLOSE",
     "COMMAND_MAIL_DELETE_PERMANENTLY",
     "COMMAND_EXPORT_PASSWORDS",
     "COMMAND_MANAGE_PEOPLE",
@@ -81,6 +83,8 @@ class AllowlistTests(unittest.TestCase):
         self.assertEqual(by_name["JS_LOCAL_ACTIVATE_TAB"]["parameter"], "tab ID")
         self.assertEqual(by_name["COMMAND_OPEN_LINK"]["kind"], "local_action")
         self.assertFalse(by_name["COMMAND_EXIT"]["allowed"])
+        self.assertFalse(by_name["COMMAND_CLOSE_TAB"]["allowed"])
+        self.assertFalse(by_name["COMMAND_TAB_STACK_CLOSE"]["allowed"])
         self.assertFalse(by_name["JS_LOCAL_ACTIVATE_WORKSPACE"]["allowed"])
         self.assertNotIn(CHAIN_NAME, by_name)
 
@@ -380,6 +384,32 @@ class RunCommandTests(unittest.IsolatedAsyncioTestCase):
 
 
 class CommandServiceTests(unittest.IsolatedAsyncioTestCase):
+    async def test_tab_close_commands_are_denied_without_browser_requests(self) -> None:
+        service = Service("http://127.0.0.1:1")
+        request = self.enterContext(
+            patch.object(
+                service.browser,
+                "request",
+                AsyncMock(side_effect=AssertionError("tab-close policy reached the browser")),
+            )
+        )
+        option_cases: list[JsonObject] = [{}, {"window_id": 7}, {"parameter": "1"}]
+        for name in ["COMMAND_CLOSE_TAB", "COMMAND_TAB_STACK_CLOSE"]:
+            for options in option_cases:
+                with self.subTest(name=name, options=options):
+                    with self.assertRaises(ControlError) as caught:
+                        await service.dispatch(
+                            {
+                                "version": 1,
+                                "operation": "command.run",
+                                "params": {"name": name, **options},
+                            }
+                        )
+                    self.assertEqual(caught.exception.code, "command_denied")
+                    self.assertEqual(caught.exception.details, {"name": name})
+                    self.assertIn("window", str(caught.exception))
+                    request.assert_not_awaited()
+
     async def test_command_list_needs_no_browser(self) -> None:
         service = Service("http://127.0.0.1:1")
         request = self.enterContext(patch.object(service.browser, "request", AsyncMock()))

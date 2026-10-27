@@ -91,6 +91,8 @@ and needs no browser connection.
 
 Some names are always refused with `command_denied`: `COMMAND_EXIT`,
 `COMMAND_QUIT_MAC_MAYBE_WARN`, `COMMAND_CLOSE_WINDOW`,
+`COMMAND_CLOSE_TAB`, `COMMAND_TAB_STACK_CLOSE` (the tab-closing handlers can
+also close a window),
 `COMMAND_MAIL_DELETE_PERMANENTLY`, `COMMAND_EXPORT_PASSWORDS`,
 `COMMAND_MANAGE_PEOPLE`, `COMMAND_NEW_GUEST_WINDOW` (it switches to a guest
 session), `JS_LOCAL_CLEAR_CLOSED_TABS`, `JS_LOCAL_CLEAR_CLOSED_WEBPANELS`, and
