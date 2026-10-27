@@ -137,9 +137,19 @@ def main() -> int:
 
         if scanned_clean:
             cache.parent.mkdir(exist_ok=True)
-            partial = cache.with_suffix(".tmp")
-            partial.write_text("".join(f"{line}\n" for line in sorted(clean | scanned_clean)))
-            partial.replace(cache)
+            # Each writer owns its temporary file. Close it before atomically
+            # publishing a complete snapshot in the same directory. Concurrent
+            # snapshots may lose cache additions, which are safe to rescan.
+            with tempfile.NamedTemporaryFile(
+                mode="w", dir=cache.parent, prefix=f"{cache.name}.", suffix=".tmp", delete=False
+            ) as stream:
+                partial = Path(stream.name)
+                try:
+                    stream.write("".join(f"{line}\n" for line in sorted(clean | scanned_clean)))
+                    stream.close()
+                    partial.replace(cache)
+                finally:
+                    partial.unlink(missing_ok=True)
 
     print(
         json.dumps(
