@@ -3,7 +3,7 @@
 
 Blobs are immutable, so a blob that scanned clean is recorded in a cache in
 the Git directory and skipped on later runs. The cache is keyed by the
-detect-secrets version and settings, and by file name as well as blob, since
+detect-secrets version and settings, and by full path as well as blob, since
 detect-secrets filters by name. Blobs with findings are never cached.
 """
 
@@ -34,7 +34,7 @@ def scan(filename: str, label: str) -> list[Finding]:
 
 def cache_path() -> Path:
     settings = json.dumps(get_settings().json(), sort_keys=True)
-    key = hashlib.sha256(f"{VERSION}\n{settings}".encode()).hexdigest()
+    key = hashlib.sha256(f"path-context-v2\n{VERSION}\n{settings}".encode()).hexdigest()
     common = Path(git("rev-parse", "--path-format=absolute", "--git-common-dir").decode().strip())
     return common / "remaldi-secret-audit" / f"{key[:16]}.txt"
 
@@ -49,23 +49,36 @@ def working_files() -> dict[str, str]:
     return dict(zip(files, identifiers.split(), strict=True))
 
 
-def history_blobs() -> dict[str, str]:
-    """Map each blob reachable from any ref to a path it appears under."""
-    objects = git("rev-list", "--all", "--objects")
+def history_blobs() -> dict[str, set[str]]:
+    """Map reachable blobs to every path used in historical tree snapshots."""
+    trees = set(git("log", "--all", "--format=%T").decode().splitlines())
+    # Include refs pointing directly to trees (including annotated tags),
+    # which git log omits. Blob-only refs have no filename context.
+    tips = git("rev-parse", "--all").decode().splitlines()
     described = git(
-        "cat-file", "--batch-check=%(objecttype) %(objectname) %(rest)", stdin=objects
+        "cat-file",
+        "--batch-check=%(objecttype) %(objectname)",
+        stdin="".join(f"{tip}^{{tree}}\n" for tip in tips).encode(),
     ).decode()
-    blobs: dict[str, str] = {}
     for line in described.splitlines():
-        kind, _, rest = line.partition(" ")
-        identifier, _, path = rest.partition(" ")
-        if kind == "blob" and path:
-            blobs.setdefault(identifier, path)
+        kind, _, identifier = line.partition(" ")
+        if kind == "tree":
+            trees.add(identifier)
+    blobs: dict[str, set[str]] = {}
+    for tree in sorted(trees):
+        for record in git("ls-tree", "-rz", "--full-tree", tree).split(b"\0"):
+            if not record:
+                continue
+            metadata, path = record.split(b"\t", 1)
+            _, kind, identifier = metadata.decode().split()
+            if kind == "blob":
+                blobs.setdefault(identifier, set()).add(path.decode())
     return blobs
 
 
 def entry(identifier: str, path: str) -> str:
-    return f"{identifier} {Path(path).name}"
+    # JSON keeps newline-containing paths within one cache line.
+    return json.dumps([identifier, path])
 
 
 def blob_contents(identifiers: list[str]) -> dict[str, bytes]:
@@ -102,17 +115,21 @@ def main() -> int:
         blobs = history_blobs()
         pending = [
             identifier
-            for identifier, path in blobs.items()
-            if entry(identifier, path) not in clean | scanned_clean
+            for identifier, paths in blobs.items()
+            if any(entry(identifier, path) not in clean | scanned_clean for path in paths)
         ]
-        with tempfile.TemporaryDirectory() as directory:
-            for identifier, content in blob_contents(pending).items():
-                path = blobs[identifier]
-                # Keep the file name, which detect-secrets filters on.
-                temporary = Path(directory) / Path(path).name
-                temporary.write_bytes(content)
-                found = scan(str(temporary), f"history:{path}:{identifier[:12]}")
-                temporary.unlink()
+        for identifier, content in blob_contents(pending).items():
+            for path in sorted(blobs[identifier]):
+                if entry(identifier, path) in clean | scanned_clean:
+                    continue
+                # Isolate paths that were files in one snapshot and
+                # directories in another.
+                with tempfile.TemporaryDirectory() as directory:
+                    # Keep the complete path, which detect-secrets filters on.
+                    temporary = Path(directory) / path
+                    temporary.parent.mkdir(parents=True, exist_ok=True)
+                    temporary.write_bytes(content)
+                    found = scan(str(temporary), f"history:{path}:{identifier[:12]}")
                 scanned += 1
                 findings.extend(found)
                 if not found:
