@@ -13,6 +13,7 @@ Promoted work lives in [BACKLOG.md](BACKLOG.md). Ordinary discoveries live in
 
 | Review (UTC) | Type | Reviewed commit | Open findings at close |
 | --- | --- | --- | --- |
+| [2026-10-27 16:20](2026-10-27-1620-full.md) | Full | `513fb5ea45d10a86cb7257befb127380bcdd0a08` | 4 |
 | [2026-10-24 02:49](2026-10-24-0249-full.md) | Full | `6f908c87794f2f8cdb8d5e70de42bab8ba408c5b` | 7 |
 
 ## Pending reconciliation
