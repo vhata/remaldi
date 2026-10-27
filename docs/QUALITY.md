@@ -60,9 +60,11 @@ from `typos.toml`, `.editorconfig` (which shfmt reads) and
   agree with the executable bit.
 - The secret audit of publishable files and reachable Git history. Blobs that
   scanned clean are cached under `remaldi-secret-audit/` in the shared Git
-  directory, keyed by detect-secrets version and settings, so later runs scan
-  only new content; delete that directory to force a full scan. Blobs with
-  findings are never cached, and CI always starts without a cache.
+  directory, keyed by audit format, detect-secrets version and settings, and
+  each blob's full path. Historical snapshots retain every blob/path context
+  so a rename to an excluded filename cannot hide earlier content. Later runs
+  scan only uncached contexts; delete that directory to force a full scan.
+  Contexts with findings are never cached, and CI always starts without a cache.
 - pytest with branch coverage of `remaldi` and an 85% floor. pytest fails when
   it collects no tests, runs in strict mode, turns warnings into errors and
   times a test out after 60 seconds. The gate spreads the tests over up to four
