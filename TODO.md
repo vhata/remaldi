@@ -80,29 +80,6 @@ and 2026-10-14.
 
 ## Needs proof of concept
 
-### P1 High
-
-- [STATE] `last-focused-window-default` — **Default `workspace switch` and `command run` to the most recently focused Vivaldi window.** The default now needs exactly one window with `focused: true`, and Chrome sets that only while Vivaldi has OS focus, so running `remaldi` from a terminal in front of Vivaldi fails with `ambiguous_window` in what the user expects to be the most common case.
-  - Source: user request, 2026-10-13, after the `regular-profile-ui-target` fix.
-  - Starting point: `_default_window` in `adapter.py`, which both window
-    selection and `window list` use; the `chrome.windows.onFocusChanged`
-    hook in `EVENT_HOOKS` (`browser.py`); `chrome.windows.getLastFocused`.
-  - Open questions: whether `getLastFocused` returns the last Vivaldi window
-    while another app has focus, or whether the UI context must record focus
-    changes itself (and what happens after a service or UI reload, before any
-    focus change is seen); how minimized windows and windows closed since are
-    handled. `window list` already reports the window the default would
-    pick as `default_window_id`, so a new rule shows up there unchanged.
-  - Unverified: `focused` being false for every window while another app is
-    frontmost is Chrome's documented behaviour, not observed in Vivaldi.
-  - Experiment: with a terminal frontmost, read `focused` on every window and
-    the result of `chrome.windows.getLastFocused` in a running debug-enabled
-    Vivaldi, read-only and only under an authorized live session; then repeat
-    after a focus change between two Vivaldi windows.
-  - Acceptance: an observed answer to whether `getLastFocused` is usable, or
-    a design for recording focus in the UI context, ready for a Ready
-    implementation entry.
-
 ### P2 Normal
 
 - [BROWSER] `retain-debugging-across-launches` — **Determine supported ways to keep debugging enabled through ordinary launches and updates.** Wrapper launches do
@@ -185,4 +162,25 @@ and 2026-10-14.
 
 ## Ready for separate work
 
-No entries.
+### P1 High
+
+- [STATE] `last-focused-window-default` — **Default `workspace switch` and `command run` to the most recently focused Vivaldi window.** The focused-only default fails when a terminal is frontmost; an authorized read-only proof of concept confirms `getLastFocused` is usable.
+  - Source: user request, 2026-10-13; authorized proof of concept, 2026-10-26.
+  - Starting point: [the implementation contract](docs/specs/2026-10-26-last-focused-window-default.md),
+    `SNAPSHOT`, normalization and `_default_window` in `adapter.py`.
+  - Evidence: Vivaldi 8.2.4133.94 returned W1/W2/W1 as focus changed while
+    terminal-frontmost windows all reported focused false; it returned a
+    minimized window when both were minimized and a surviving window after
+    the selected disposable window closed. Twelve sanitized samples are
+    linked from the contract. No production behavior changed in the proof.
+  - Approach: query browser-owned last focus in the regular UI context;
+    validate the candidate and current-window membership in the shared
+    default rule. Preserve explicit IDs, same type policy, dispatch-time
+    existence/minimized guards, event/TTL invalidation and no replay.
+    Distinguish unavailable/error from invalid successful results so the
+    contract's compatibility fallback remains explicit and testable.
+  - Acceptance: implement the shared selection rule and failure policy;
+    verify terminal/focus/startup cases, minimized/closed/invalid candidates,
+    explicit overrides, list/default parity and cache invalidation; pass
+    the shared gate and independent review. Live visible command effects,
+    UI reloads and browser reconnect acceptance remain separate.

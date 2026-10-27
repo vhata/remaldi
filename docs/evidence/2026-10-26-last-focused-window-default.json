@@ -1,0 +1,778 @@
+{
+  "scope": "Authorized read-only API probes; all browser changes performed manually by the user.",
+  "platform": "macOS",
+  "browser_version": "Chrome/8.2.4133.94",
+  "protocol": "1.3",
+  "alias_scope": "Stable within this probe process; raw window and target IDs were never retained.",
+  "foreground": "User confirmed terminal frontmost at each checkpoint; OS foreground was not queried.",
+  "checkpoints": {
+    "baseline": [
+      {
+        "after": {
+          "status": "ok",
+          "value": [
+            {
+              "focused": false,
+              "state": "maximized",
+              "type": "normal",
+              "window": "W1"
+            }
+          ]
+        },
+        "before": {
+          "status": "ok",
+          "value": [
+            {
+              "focused": false,
+              "state": "maximized",
+              "type": "normal",
+              "window": "W1"
+            }
+          ]
+        },
+        "browser_version": "Chrome/8.2.4133.94",
+        "checkpoint": "baseline",
+        "last": {
+          "status": "ok",
+          "value": {
+            "focused": false,
+            "state": "maximized",
+            "type": "normal",
+            "window": "W1"
+          }
+        },
+        "normal": {
+          "status": "ok",
+          "value": {
+            "focused": false,
+            "state": "maximized",
+            "type": "normal",
+            "window": "W1"
+          }
+        },
+        "previous": {
+          "status": "not_requested"
+        },
+        "previous_window": null,
+        "protocol": "1.3",
+        "sample": 1,
+        "target_changed": false,
+        "utc": "2026-10-27T06:32:09.749618+00:00"
+      },
+      {
+        "after": {
+          "status": "ok",
+          "value": [
+            {
+              "focused": false,
+              "state": "maximized",
+              "type": "normal",
+              "window": "W1"
+            }
+          ]
+        },
+        "before": {
+          "status": "ok",
+          "value": [
+            {
+              "focused": false,
+              "state": "maximized",
+              "type": "normal",
+              "window": "W1"
+            }
+          ]
+        },
+        "browser_version": "Chrome/8.2.4133.94",
+        "checkpoint": "baseline",
+        "last": {
+          "status": "ok",
+          "value": {
+            "focused": false,
+            "state": "maximized",
+            "type": "normal",
+            "window": "W1"
+          }
+        },
+        "normal": {
+          "status": "ok",
+          "value": {
+            "focused": false,
+            "state": "maximized",
+            "type": "normal",
+            "window": "W1"
+          }
+        },
+        "previous": {
+          "status": "ok",
+          "value": {
+            "focused": false,
+            "state": "maximized",
+            "type": "normal",
+            "window": "W1"
+          }
+        },
+        "previous_window": "W1",
+        "protocol": "1.3",
+        "sample": 2,
+        "target_changed": false,
+        "utc": "2026-10-27T06:32:10.781928+00:00"
+      }
+    ],
+    "focus-a": [
+      {
+        "after": {
+          "status": "ok",
+          "value": [
+            {
+              "focused": false,
+              "state": "maximized",
+              "type": "normal",
+              "window": "W1"
+            }
+          ]
+        },
+        "before": {
+          "status": "ok",
+          "value": [
+            {
+              "focused": false,
+              "state": "maximized",
+              "type": "normal",
+              "window": "W1"
+            }
+          ]
+        },
+        "browser_version": "Chrome/8.2.4133.94",
+        "checkpoint": "focus-a",
+        "last": {
+          "status": "ok",
+          "value": {
+            "focused": false,
+            "state": "maximized",
+            "type": "normal",
+            "window": "W1"
+          }
+        },
+        "normal": {
+          "status": "ok",
+          "value": {
+            "focused": false,
+            "state": "maximized",
+            "type": "normal",
+            "window": "W1"
+          }
+        },
+        "previous": {
+          "status": "ok",
+          "value": {
+            "focused": false,
+            "state": "maximized",
+            "type": "normal",
+            "window": "W1"
+          }
+        },
+        "previous_window": "W1",
+        "protocol": "1.3",
+        "sample": 1,
+        "target_changed": false,
+        "utc": "2026-10-27T06:33:44.127912+00:00"
+      },
+      {
+        "after": {
+          "status": "ok",
+          "value": [
+            {
+              "focused": false,
+              "state": "maximized",
+              "type": "normal",
+              "window": "W1"
+            }
+          ]
+        },
+        "before": {
+          "status": "ok",
+          "value": [
+            {
+              "focused": false,
+              "state": "maximized",
+              "type": "normal",
+              "window": "W1"
+            }
+          ]
+        },
+        "browser_version": "Chrome/8.2.4133.94",
+        "checkpoint": "focus-a",
+        "last": {
+          "status": "ok",
+          "value": {
+            "focused": false,
+            "state": "maximized",
+            "type": "normal",
+            "window": "W1"
+          }
+        },
+        "normal": {
+          "status": "ok",
+          "value": {
+            "focused": false,
+            "state": "maximized",
+            "type": "normal",
+            "window": "W1"
+          }
+        },
+        "previous": {
+          "status": "ok",
+          "value": {
+            "focused": false,
+            "state": "maximized",
+            "type": "normal",
+            "window": "W1"
+          }
+        },
+        "previous_window": "W1",
+        "protocol": "1.3",
+        "sample": 2,
+        "target_changed": false,
+        "utc": "2026-10-27T06:33:45.162548+00:00"
+      }
+    ],
+    "focus-b": [
+      {
+        "after": {
+          "status": "ok",
+          "value": [
+            {
+              "focused": false,
+              "state": "maximized",
+              "type": "normal",
+              "window": "W1"
+            },
+            {
+              "focused": false,
+              "state": "maximized",
+              "type": "normal",
+              "window": "W2"
+            }
+          ]
+        },
+        "before": {
+          "status": "ok",
+          "value": [
+            {
+              "focused": false,
+              "state": "maximized",
+              "type": "normal",
+              "window": "W1"
+            },
+            {
+              "focused": false,
+              "state": "maximized",
+              "type": "normal",
+              "window": "W2"
+            }
+          ]
+        },
+        "browser_version": "Chrome/8.2.4133.94",
+        "checkpoint": "focus-b",
+        "last": {
+          "status": "ok",
+          "value": {
+            "focused": false,
+            "state": "maximized",
+            "type": "normal",
+            "window": "W2"
+          }
+        },
+        "normal": {
+          "status": "ok",
+          "value": {
+            "focused": false,
+            "state": "maximized",
+            "type": "normal",
+            "window": "W2"
+          }
+        },
+        "previous": {
+          "status": "ok",
+          "value": {
+            "focused": false,
+            "state": "maximized",
+            "type": "normal",
+            "window": "W1"
+          }
+        },
+        "previous_window": "W1",
+        "protocol": "1.3",
+        "sample": 1,
+        "target_changed": false,
+        "utc": "2026-10-27T06:35:43.573007+00:00"
+      },
+      {
+        "after": {
+          "status": "ok",
+          "value": [
+            {
+              "focused": false,
+              "state": "maximized",
+              "type": "normal",
+              "window": "W1"
+            },
+            {
+              "focused": false,
+              "state": "maximized",
+              "type": "normal",
+              "window": "W2"
+            }
+          ]
+        },
+        "before": {
+          "status": "ok",
+          "value": [
+            {
+              "focused": false,
+              "state": "maximized",
+              "type": "normal",
+              "window": "W1"
+            },
+            {
+              "focused": false,
+              "state": "maximized",
+              "type": "normal",
+              "window": "W2"
+            }
+          ]
+        },
+        "browser_version": "Chrome/8.2.4133.94",
+        "checkpoint": "focus-b",
+        "last": {
+          "status": "ok",
+          "value": {
+            "focused": false,
+            "state": "maximized",
+            "type": "normal",
+            "window": "W2"
+          }
+        },
+        "normal": {
+          "status": "ok",
+          "value": {
+            "focused": false,
+            "state": "maximized",
+            "type": "normal",
+            "window": "W2"
+          }
+        },
+        "previous": {
+          "status": "ok",
+          "value": {
+            "focused": false,
+            "state": "maximized",
+            "type": "normal",
+            "window": "W2"
+          }
+        },
+        "previous_window": "W2",
+        "protocol": "1.3",
+        "sample": 2,
+        "target_changed": false,
+        "utc": "2026-10-27T06:35:44.597956+00:00"
+      }
+    ],
+    "focus-a-two-windows": [
+      {
+        "after": {
+          "status": "ok",
+          "value": [
+            {
+              "focused": false,
+              "state": "maximized",
+              "type": "normal",
+              "window": "W1"
+            },
+            {
+              "focused": false,
+              "state": "maximized",
+              "type": "normal",
+              "window": "W2"
+            }
+          ]
+        },
+        "before": {
+          "status": "ok",
+          "value": [
+            {
+              "focused": false,
+              "state": "maximized",
+              "type": "normal",
+              "window": "W1"
+            },
+            {
+              "focused": false,
+              "state": "maximized",
+              "type": "normal",
+              "window": "W2"
+            }
+          ]
+        },
+        "browser_version": "Chrome/8.2.4133.94",
+        "checkpoint": "focus-a",
+        "last": {
+          "status": "ok",
+          "value": {
+            "focused": false,
+            "state": "maximized",
+            "type": "normal",
+            "window": "W1"
+          }
+        },
+        "normal": {
+          "status": "ok",
+          "value": {
+            "focused": false,
+            "state": "maximized",
+            "type": "normal",
+            "window": "W1"
+          }
+        },
+        "previous": {
+          "status": "ok",
+          "value": {
+            "focused": false,
+            "state": "maximized",
+            "type": "normal",
+            "window": "W2"
+          }
+        },
+        "previous_window": "W2",
+        "protocol": "1.3",
+        "sample": 1,
+        "target_changed": false,
+        "utc": "2026-10-27T06:37:32.526164+00:00"
+      },
+      {
+        "after": {
+          "status": "ok",
+          "value": [
+            {
+              "focused": false,
+              "state": "maximized",
+              "type": "normal",
+              "window": "W1"
+            },
+            {
+              "focused": false,
+              "state": "maximized",
+              "type": "normal",
+              "window": "W2"
+            }
+          ]
+        },
+        "before": {
+          "status": "ok",
+          "value": [
+            {
+              "focused": false,
+              "state": "maximized",
+              "type": "normal",
+              "window": "W1"
+            },
+            {
+              "focused": false,
+              "state": "maximized",
+              "type": "normal",
+              "window": "W2"
+            }
+          ]
+        },
+        "browser_version": "Chrome/8.2.4133.94",
+        "checkpoint": "focus-a",
+        "last": {
+          "status": "ok",
+          "value": {
+            "focused": false,
+            "state": "maximized",
+            "type": "normal",
+            "window": "W1"
+          }
+        },
+        "normal": {
+          "status": "ok",
+          "value": {
+            "focused": false,
+            "state": "maximized",
+            "type": "normal",
+            "window": "W1"
+          }
+        },
+        "previous": {
+          "status": "ok",
+          "value": {
+            "focused": false,
+            "state": "maximized",
+            "type": "normal",
+            "window": "W1"
+          }
+        },
+        "previous_window": "W1",
+        "protocol": "1.3",
+        "sample": 2,
+        "target_changed": false,
+        "utc": "2026-10-27T06:37:33.553546+00:00"
+      }
+    ],
+    "minimized": [
+      {
+        "after": {
+          "status": "ok",
+          "value": [
+            {
+              "focused": false,
+              "state": "minimized",
+              "type": "normal",
+              "window": "W1"
+            },
+            {
+              "focused": false,
+              "state": "minimized",
+              "type": "normal",
+              "window": "W2"
+            }
+          ]
+        },
+        "before": {
+          "status": "ok",
+          "value": [
+            {
+              "focused": false,
+              "state": "minimized",
+              "type": "normal",
+              "window": "W1"
+            },
+            {
+              "focused": false,
+              "state": "minimized",
+              "type": "normal",
+              "window": "W2"
+            }
+          ]
+        },
+        "browser_version": "Chrome/8.2.4133.94",
+        "checkpoint": "minimized",
+        "last": {
+          "status": "ok",
+          "value": {
+            "focused": false,
+            "state": "minimized",
+            "type": "normal",
+            "window": "W2"
+          }
+        },
+        "normal": {
+          "status": "ok",
+          "value": {
+            "focused": false,
+            "state": "minimized",
+            "type": "normal",
+            "window": "W2"
+          }
+        },
+        "previous": {
+          "status": "ok",
+          "value": {
+            "focused": false,
+            "state": "minimized",
+            "type": "normal",
+            "window": "W1"
+          }
+        },
+        "previous_window": "W1",
+        "protocol": "1.3",
+        "sample": 1,
+        "target_changed": false,
+        "utc": "2026-10-27T06:54:01.051766+00:00"
+      },
+      {
+        "after": {
+          "status": "ok",
+          "value": [
+            {
+              "focused": false,
+              "state": "minimized",
+              "type": "normal",
+              "window": "W1"
+            },
+            {
+              "focused": false,
+              "state": "minimized",
+              "type": "normal",
+              "window": "W2"
+            }
+          ]
+        },
+        "before": {
+          "status": "ok",
+          "value": [
+            {
+              "focused": false,
+              "state": "minimized",
+              "type": "normal",
+              "window": "W1"
+            },
+            {
+              "focused": false,
+              "state": "minimized",
+              "type": "normal",
+              "window": "W2"
+            }
+          ]
+        },
+        "browser_version": "Chrome/8.2.4133.94",
+        "checkpoint": "minimized",
+        "last": {
+          "status": "ok",
+          "value": {
+            "focused": false,
+            "state": "minimized",
+            "type": "normal",
+            "window": "W2"
+          }
+        },
+        "normal": {
+          "status": "ok",
+          "value": {
+            "focused": false,
+            "state": "minimized",
+            "type": "normal",
+            "window": "W2"
+          }
+        },
+        "previous": {
+          "status": "ok",
+          "value": {
+            "focused": false,
+            "state": "minimized",
+            "type": "normal",
+            "window": "W2"
+          }
+        },
+        "previous_window": "W2",
+        "protocol": "1.3",
+        "sample": 2,
+        "target_changed": false,
+        "utc": "2026-10-27T06:54:02.082281+00:00"
+      }
+    ],
+    "after-close": [
+      {
+        "after": {
+          "status": "ok",
+          "value": [
+            {
+              "focused": false,
+              "state": "minimized",
+              "type": "normal",
+              "window": "W1"
+            }
+          ]
+        },
+        "before": {
+          "status": "ok",
+          "value": [
+            {
+              "focused": false,
+              "state": "minimized",
+              "type": "normal",
+              "window": "W1"
+            }
+          ]
+        },
+        "browser_version": "Chrome/8.2.4133.94",
+        "checkpoint": "after-close",
+        "last": {
+          "status": "ok",
+          "value": {
+            "focused": false,
+            "state": "minimized",
+            "type": "normal",
+            "window": "W1"
+          }
+        },
+        "normal": {
+          "status": "ok",
+          "value": {
+            "focused": false,
+            "state": "minimized",
+            "type": "normal",
+            "window": "W1"
+          }
+        },
+        "previous": {
+          "status": "api_error"
+        },
+        "previous_window": "W2",
+        "protocol": "1.3",
+        "sample": 1,
+        "target_changed": false,
+        "utc": "2026-10-27T06:58:33.166020+00:00"
+      },
+      {
+        "after": {
+          "status": "ok",
+          "value": [
+            {
+              "focused": false,
+              "state": "minimized",
+              "type": "normal",
+              "window": "W1"
+            }
+          ]
+        },
+        "before": {
+          "status": "ok",
+          "value": [
+            {
+              "focused": false,
+              "state": "minimized",
+              "type": "normal",
+              "window": "W1"
+            }
+          ]
+        },
+        "browser_version": "Chrome/8.2.4133.94",
+        "checkpoint": "after-close",
+        "last": {
+          "status": "ok",
+          "value": {
+            "focused": false,
+            "state": "minimized",
+            "type": "normal",
+            "window": "W1"
+          }
+        },
+        "normal": {
+          "status": "ok",
+          "value": {
+            "focused": false,
+            "state": "minimized",
+            "type": "normal",
+            "window": "W1"
+          }
+        },
+        "previous": {
+          "status": "ok",
+          "value": {
+            "focused": false,
+            "state": "minimized",
+            "type": "normal",
+            "window": "W1"
+          }
+        },
+        "previous_window": "W1",
+        "protocol": "1.3",
+        "sample": 2,
+        "target_changed": false,
+        "utc": "2026-10-27T06:58:34.193289+00:00"
+      }
+    ]
+  }
+}
