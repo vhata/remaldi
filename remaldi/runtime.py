@@ -9,7 +9,9 @@ SOCKET_PATH_LIMIT = 104
 
 
 def runtime_dir() -> Path:
-    path = Path(os.environ.get("REMALDI_RUNTIME_DIR", str(Path.home() / "Library/Caches/remaldi")))
+    path = Path(
+        os.environ.get("REMALDI_RUNTIME_DIR", str(Path.home() / "Library/Caches/remaldi"))
+    ).absolute()
     path.mkdir(mode=0o700, parents=True, exist_ok=True)
     info = path.lstat()
     if path.is_symlink() or not path.is_dir() or info.st_uid != os.getuid() or info.st_mode & 0o077:

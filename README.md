@@ -176,6 +176,9 @@ short-lived startup lock and the daemon holds a separate lifetime lock. Stale
 sockets are replaced only by a daemon that has acquired the lifetime lock.
 
 `REMALDI_RUNTIME_DIR` overrides the runtime directory; use a short private path.
+Relative overrides are made absolute from the client's working directory and
+passed to the daemon, which uses the same directory for its socket and locks.
+The socket path length limit applies to the encoded absolute path.
 `REMALDI_ENDPOINT` overrides the loopback HTTP debugger URL (default
 `http://127.0.0.1:9222`). Discovery and WebSockets bypass proxy settings. Browser
 connections reconnect with capped backoff. Only local, current-user clients are

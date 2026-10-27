@@ -81,6 +81,7 @@ def start_service(path: Path) -> None:
             os.close(owner)
             package_root = str(Path(__file__).resolve().parent.parent)
             environment = os.environ.copy()
+            environment["REMALDI_RUNTIME_DIR"] = str(path)
             environment["PYTHONPATH"] = (
                 package_root + os.pathsep + environment.get("PYTHONPATH", "")
             )

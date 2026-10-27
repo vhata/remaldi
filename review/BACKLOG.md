@@ -25,12 +25,6 @@ and [claim rules](../docket/TODO_GUIDE.md) before selection.
   - Starting point: `history_blobs` and historical temporary-file naming in `scripts/audit-secrets.py`.
   - Acceptance: a synthetic keyword fixture committed as `config.py`, renamed to `poetry.lock` and deleted is detected by a cold audit; no credential values are printed.
 
-- [SERVICE] `normalize-runtime-directory` — **Use the same absolute runtime path in the client and detached daemon.** Relative overrides currently split socket and lock ownership after the child's working-directory change.
-  - Source: [full review, 2026-10-24](2026-10-24-0249-full.md).
-  - Findings: `relative-runtime-splits-client-daemon`
-  - Starting point: `runtime_dir` in `remaldi/runtime.py` and `start_service` in `remaldi/client.py`.
-  - Acceptance: first-use startup from outside the package root with a relative runtime override reaches one daemon at the intended path; status/stop reuse it and absolute socket length is validated.
-
 - [TOOLING] `publish-audit-cache-concurrently` — **Publish clean secret-audit caches safely across simultaneous worktrees.** A fixed shared temporary filename currently makes one clean audit fail.
   - Source: [full review, 2026-10-24](2026-10-24-0249-full.md).
   - Findings: `secret-cache-shared-temporary-file`
