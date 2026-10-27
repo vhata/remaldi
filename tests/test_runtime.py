@@ -1,6 +1,7 @@
 import os
 import tempfile
 import unittest
+from contextlib import chdir
 from pathlib import Path
 from unittest.mock import patch
 
@@ -54,7 +55,7 @@ class RuntimeTests(unittest.TestCase):
         (self.root / "link").symlink_to(self.root, target_is_directory=True)
         with (
             patch.dict(os.environ, REMALDI_RUNTIME_DIR="link"),
-            patch("os.getcwd", return_value=self.temp.name),
+            chdir(self.root),
             self.assertRaises(ControlError) as raised,
         ):
             runtime_dir()
