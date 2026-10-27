@@ -228,6 +228,32 @@ class BrowserTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(caught.exception.code, "target_unavailable")
         self.assertEqual(caught.exception.details["target"], "missing")
 
+    async def test_empty_explicit_target_does_not_dispatch_to_ui(self) -> None:
+        with patch.object(self.browser, "_discover", return_value=[self.target("first", "ui")]):
+            await self.browser.refresh()
+        self.received.clear()
+        self.received_by_path.clear()
+        with self.assertRaises(ControlError) as caught:
+            await self.browser.request("Runtime.evaluate", {"expression": "1"}, target="")
+        self.assertEqual(caught.exception.code, "invalid_parameters")
+        self.assertEqual(self.received, [])
+
+        for params in ({}, {"target": None}):
+            with self.subTest(params=params):
+                result = await self.browser.request("Browser.getVersion", **params)
+                self.assertEqual(result, {"ok": True})
+        self.assertEqual(self.methods("ui"), ["Browser.getVersion"] * 2)
+
+    async def test_empty_explicit_target_is_rejected_before_discovery(self) -> None:
+        with (
+            patch.object(self.browser, "refresh", AsyncMock()) as refresh,
+            self.assertRaises(ControlError) as caught,
+        ):
+            await self.browser.request("Browser.getVersion", target="")
+        self.assertEqual(caught.exception.code, "invalid_parameters")
+        refresh.assert_not_awaited()
+        self.assertEqual(self.received, [])
+
     async def test_explicit_target_handshake_failure_is_structured_error(self) -> None:
         target = {
             "id": "broken",

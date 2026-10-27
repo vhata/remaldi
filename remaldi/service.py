@@ -104,7 +104,7 @@ class Service:
             if (
                 not isinstance(method, str)
                 or not isinstance(devtools_params, dict)
-                or (target is not None and not isinstance(target, str))
+                or (target is not None and (not isinstance(target, str) or not target))
             ):
                 raise ControlError(
                     "invalid_parameters", "Invalid DevTools method, params, or target."
