@@ -113,6 +113,18 @@ class HistoricalAuditTests(unittest.TestCase):
 
         self.assert_history_finding(self.audit(1), "config.py")
 
+    def test_cold_history_preserves_directory_exclusions(self) -> None:
+        self.write_fixture("swagger/config.py")
+        self.commit()
+        self.git("rm", "swagger/config.py")
+        self.commit()
+
+        payload = self.audit(0)
+        self.assertEqual(payload["files"], 0)
+        self.assertEqual(payload["history_blobs"], 1)
+        self.assertEqual(payload["findings"], [])
+        self.assertEqual(self.audit(0)["scanned"], 0)
+
     def test_other_refs_and_unusual_historical_paths_are_scanned(self) -> None:
         self.git("commit", "--quiet", "--allow-empty", "-m", "Empty base")
         base = self.git("rev-parse", "HEAD")
