@@ -90,6 +90,21 @@ Remaldi does not need to control Private windows, so that work is not queued.
 With several regular profiles the first non-incognito target still wins, which
 is no worse than before.
 
+## 2026-10-26: Deny tab-closing commands that can close windows
+
+`COMMAND_CLOSE_TAB` and `COMMAND_TAB_STACK_CLOSE` are always denied by
+`command run`, just like `COMMAND_CLOSE_WINDOW`. The installed Vivaldi
+8.2.4133.94 handlers reach window closure; the version-scoped static trace is
+in [the control-surface guide](VIVALDI_CONTROL_SURFACE.md#tab-close-lifecycle).
+The registry list retains its original 8.2.4133.84 provenance.
+
+A snapshot of tab counts or the never-close-last preference would not prove
+that a later dispatch cannot close a window: state can change, and close-tab
+directly closes non-tabbed windows. Denying both names before any browser
+request avoids those paths without relying on live state. They remain visible
+in `command list` with `allowed: false`. This policy is tested with mocked
+browser requests; no live closure or browser quitting is claimed.
+
 ## 2026-10-13: Curate the command allowlist from Vivaldi's bundle
 
 `command run` dispatches only names in `remaldi/commands.py`: the command

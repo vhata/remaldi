@@ -403,6 +403,10 @@ DENIED = {
     "COMMAND_EXIT": "quits the browser",
     "COMMAND_QUIT_MAC_MAYBE_WARN": "quits the browser",
     "COMMAND_CLOSE_WINDOW": "closing the last window may quit the browser",
+    # Both handlers can close windows in 8.2.4133.94; see the version-scoped
+    # static trace in docs/VIVALDI_CONTROL_SURFACE.md, "Tab-close lifecycle".
+    "COMMAND_CLOSE_TAB": "can close a window; closing the last window may quit the browser",
+    "COMMAND_TAB_STACK_CLOSE": "can close a window; closing the last window may quit the browser",
     "COMMAND_MAIL_DELETE_PERMANENTLY": "permanently deletes mail",
     "COMMAND_EXPORT_PASSWORDS": "exports saved passwords",  # pragma: allowlist secret
     "COMMAND_MANAGE_PEOPLE": "opens profile management",

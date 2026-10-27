@@ -551,6 +551,46 @@ Other listenable sources include `vivaldi.tabsPrivate.onKeyboardShortcut`/`onMou
 DevTools `Target.*` events. None of the Vivaldi or DevTools sources named here
 were observed firing during the probe.
 
+## Tab-close lifecycle
+
+**Static, Vivaldi 8.2.4133.94 on macOS, 2026-10-26.** This is a separate
+handler inspection from the 8.2.4133.84 command-registry inventory above.
+The installed application's `Contents/Info.plist` identifies .94. Its source
+is `Contents/Frameworks/Vivaldi Framework.framework/Versions/8.2.4133.94/Resources/vivaldi/bundle.js`
+under `/Applications/Vivaldi.app`, with SHA-256:
+
+```text
+097255a676b78accf31fbe2b7d758bc7a073a85a9f9d96f8d69a6156124f53a8
+```
+
+Offsets below are zero-based character positions in the UTF-8 decoded bundle,
+not byte offsets. Re-read the named handlers after an application update;
+minified names and offsets are version-specific.
+
+| Character offset | Static path |
+| --- | --- |
+| 4853556 | `COMMAND_CLOSE_TAB` registry action calls `y.ZP.close(windowId)`. |
+| 215465 | `close` sends tabbed windows to `qe.closePage`; non-tabbed windows go directly to `v.Z.close`. |
+| 4869722 | `COMMAND_TAB_STACK_CLOSE` registry action calls `y.ZP.closeTabStack(active.id)`. |
+| 216317 | `closeTabStack` sends the stack's pages to shared close logic `Te`. |
+| 209578 | Shared page-close logic can select window closure when the final unassigned tabs close and `vivaldi.tabs.never_close_last` is false. |
+| 211192 | The selected window-close branch awaits `v.Z.close(o)`. |
+| 272412 | Window close calls `chrome.windows.remove` (minified as `m.Z.windows.remove(e)`). |
+
+The registry's module 93196 imports module 59322 as `y`; that module exports
+the handlers above and imports window actions (module 63153) as `v`. Window
+actions import module 92292 as `m`. The accompanying
+`background-common-bundle.js` exports `self.chrome` from module 92292 and maps
+`kTabsNeverCloseLast` to `vivaldi.tabs.never_close_last`. The packaged
+`prefs_definitions.json` sets that preference's `default_mac` to false; this
+does not establish the user's live preference value.
+
+Both registered names are denied by Remaldi before any browser request and
+listed with `allowed: false`. Checking a cached tab count would not guard
+these conditional and direct window-close paths. This trace establishes
+reachable code, not observed window closure or browser quitting; no command
+was executed to obtain it.
+
 ## What not to wrap
 
 These exist in the UI target and are reachable through `remaldi raw` or
@@ -561,8 +601,9 @@ These exist in the UI target and are reachable through `remaldi raw` or
   `vivaldi.autoUpdate.installUpdateAndRestart`,
   `vivaldi.runtimePrivate.closeActiveProfile`/`switchToGuestSession`, and the
   `EXIT` and `QUIT_MAC_MAYBE_WARN` commands. `CLOSE_WINDOW` on the last window
-  may also quit the browser. User-defined chains can contain any of these
-  commands.
+  may also quit the browser. `COMMAND_CLOSE_TAB` and `COMMAND_TAB_STACK_CLOSE`
+  can reach window closure too; see [Tab-close lifecycle](#tab-close-lifecycle).
+  User-defined chains can contain any of these commands.
 - **Secrets**: `vivaldi.savedpasswords.*`,
   `chrome.passwordsPrivate.requestPlaintextPassword`/`exportPasswords`,
   `vivaldi.utilities.osDecrypt`, `vivaldi.utilities.get*OAuthClientSecret` and

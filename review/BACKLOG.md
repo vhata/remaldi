@@ -13,12 +13,6 @@ and [claim rules](../docket/TODO_GUIDE.md) before selection.
   - Starting point: `Browser.request` in `remaldi/browser.py` and raw parameter validation in `remaldi/service.py`.
   - Acceptance: a fake-server request with `target: ""` returns a structured error with no transmitted DevTools request; omitted target still selects the UI.
 
-- [STATE] `guard-tab-close-window-lifecycle` — **Prevent allowed tab-closing commands from bypassing the window-close denial.** Both close-tab and close-stack reach window closure in inspected Vivaldi 8.2.4133.94 code.
-  - Source: [full review, 2026-10-24](2026-10-24-0249-full.md).
-  - Findings: `close-tab-command-bypasses-window-denial`
-  - Starting point: `REGISTERED_COMMANDS`/`DENIED` in `remaldi/commands.py`; version-scoped static trace in the snapshot.
-  - Acceptance: confirm the handler path for the supported Vivaldi version, then deny these names or prove an equivalent pre-dispatch guard prevents window closure; automate policy checks without operating a live browser.
-
 - [TOOLING] `scan-history-without-filename-blind-spots` — **Scan historical content without losing relevant filename contexts.** A rename to a filename excluded by detect-secrets must not hide content previously committed under a scanned name.
   - Source: [full review, 2026-10-24](2026-10-24-0249-full.md).
   - Findings: `historical-secret-filename-suppression`
