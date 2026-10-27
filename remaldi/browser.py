@@ -217,11 +217,14 @@ class Browser:
     async def request(
         self, method: str, params: JsonObject | None = None, target: str | None = None
     ) -> JsonObject:
+        if target == "":
+            raise ControlError("invalid_parameters", "Debugger target must not be empty.")
         if self.detail == "Not connected yet.":
             await self.refresh()
         async with self.lock:
+            target_id = self.ui_target_id if target is None else target
             selected = next(
-                (item for item in self.targets if item.get("id") == (target or self.ui_target_id)),
+                (item for item in self.targets if item.get("id") == target_id),
                 None,
             )
             if selected is None:

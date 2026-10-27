@@ -147,6 +147,8 @@ dependent; other evaluation failures are explicit errors.
 
 `raw METHOD --params '{...}' --target TARGET_ID` sends any DevTools request to an
 explicit discovered target. Without `--target`, it uses the Vivaldi UI target.
+An explicitly empty target returns `invalid_parameters` without sending a
+DevTools request.
 `evaluate` is a convenience wrapper for `Runtime.evaluate`; inspect its returned
 `exceptionDetails` for JavaScript exceptions. Friendly operations live in the
 service operation registry and Vivaldi adapter, independently of transport.

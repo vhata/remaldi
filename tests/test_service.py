@@ -33,6 +33,13 @@ class ServiceDeadlineTests(unittest.IsolatedAsyncioTestCase):
         await asyncio.gather(*self.tasks, return_exceptions=True)
         self.directory.cleanup()
 
+    async def test_raw_empty_target_returns_structured_error_without_browser_request(self) -> None:
+        with patch.object(self.service.browser, "request", AsyncMock()) as request:
+            with self.assertRaises(ControlError) as caught:
+                await exchange(self.path, "raw", {"method": "Runtime.evaluate", "target": ""})
+            self.assertEqual(caught.exception.code, "invalid_parameters")
+            request.assert_not_awaited()
+
     async def test_deadline_cancels_running_operation(self) -> None:
         started, cancelled = asyncio.Event(), asyncio.Event()
 
@@ -158,6 +165,7 @@ class RawDispatchTests(unittest.IsolatedAsyncioTestCase):
             {"method": "Browser.getVersion", "params": None},
             {"method": "Browser.getVersion", "params": []},
             {"method": "Browser.getVersion", "target": 7},
+            {"method": "Browser.getVersion", "target": ""},
         ]
         for bad in bad_params:
             with self.subTest(params=bad), self.assertRaises(ControlError) as caught:
