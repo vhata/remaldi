@@ -65,6 +65,9 @@ from `typos.toml`, `.editorconfig` (which shfmt reads) and
   so a rename to an excluded filename cannot hide earlier content. Later runs
   scan only uncached contexts; delete that directory to force a full scan.
   Contexts with findings are never cached, and CI always starts without a cache.
+  Each writer publishes a complete snapshot through its own temporary file
+  and an atomic replacement. Concurrent snapshots may replace one another's
+  additions; omitted contexts are safely scanned again on the next audit.
 - pytest with branch coverage of `remaldi` and an 85% floor. pytest fails when
   it collects no tests, runs in strict mode, turns warnings into errors and
   times a test out after 60 seconds. The gate spreads the tests over up to four
